@@ -1,15 +1,6 @@
 streamlit
-groq
-pymupdf
-opencv-python-headless
 pandas
 pydantic
 openpyxl
 reportlab
 Pillow
-numpy
-
-# --- Optional: OCR support -------------------------------------------------
-# EasyOCR pulls in PyTorch (~500MB+), heavy for the free 1GB RAM tier.
-# Uncomment only if you have more resources available.
-# easyocr==1.7.2
