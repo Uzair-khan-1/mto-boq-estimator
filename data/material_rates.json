@@ -1,0 +1,31 @@
+{
+  "currency": "INR",
+  "note": "Illustrative default rates for MVP demo purposes only. These are NOT live market rates - always override with current local rates before relying on the cost estimate. Rates are all-inclusive (material + labour) approximations for quick preliminary budgeting.",
+  "rates": [
+    {"item_code": "EXC-01", "description": "Earthwork excavation in ordinary soil for footings", "unit": "m3", "rate": 350, "category": "Excavation"},
+    {"item_code": "PCC-01", "description": "PCC (M10) bedding below footings", "unit": "m3", "rate": 5800, "category": "PCC"},
+    {"item_code": "FTG-CONC-01", "description": "RCC in isolated footings", "unit": "m3", "rate": 7200, "category": "Footing"},
+    {"item_code": "FTG-STEEL-01", "description": "Reinforcement steel in footings", "unit": "kg", "rate": 85, "category": "Reinforcement"},
+    {"item_code": "COL-CONC-01", "description": "RCC in columns", "unit": "m3", "rate": 7800, "category": "Column"},
+    {"item_code": "COL-STEEL-01", "description": "Reinforcement steel in columns", "unit": "kg", "rate": 85, "category": "Reinforcement"},
+    {"item_code": "BEAM-CONC-01", "description": "RCC in beams", "unit": "m3", "rate": 7600, "category": "Beam"},
+    {"item_code": "BEAM-STEEL-01", "description": "Reinforcement steel in beams", "unit": "kg", "rate": 85, "category": "Reinforcement"},
+    {"item_code": "SLAB-CONC-01", "description": "RCC in slabs", "unit": "m3", "rate": 7500, "category": "Slab"},
+    {"item_code": "SLAB-STEEL-01", "description": "Reinforcement steel in slabs", "unit": "kg", "rate": 85, "category": "Reinforcement"},
+    {"item_code": "FORM-FTG-01", "description": "Formwork to footings", "unit": "m2", "rate": 320, "category": "Formwork"},
+    {"item_code": "FORM-COL-01", "description": "Formwork to columns", "unit": "m2", "rate": 420, "category": "Formwork"},
+    {"item_code": "FORM-BEAM-01", "description": "Formwork to beams", "unit": "m2", "rate": 420, "category": "Formwork"},
+    {"item_code": "FORM-SLAB-01", "description": "Formwork to slabs", "unit": "m2", "rate": 380, "category": "Formwork"},
+    {"item_code": "MAS-01", "description": "Masonry/blockwork units", "unit": "Nos", "rate": 9, "category": "Masonry"},
+    {"item_code": "MAS-02", "description": "Masonry mortar", "unit": "m3", "rate": 6800, "category": "Masonry"},
+    {"item_code": "PLAS-01", "description": "Internal cement plaster", "unit": "m2", "rate": 220, "category": "Plaster"},
+    {"item_code": "PLAS-02", "description": "External cement plaster", "unit": "m2", "rate": 260, "category": "Plaster"},
+    {"item_code": "FLR-01", "description": "Flooring (tiling/finish)", "unit": "m2", "rate": 950, "category": "Flooring"},
+    {"item_code": "WP-01", "description": "Terrace/roof waterproofing", "unit": "m2", "rate": 480, "category": "Waterproofing"},
+    {"item_code": "PAINT-01", "description": "Internal painting", "unit": "m2", "rate": 130, "category": "Painting"},
+    {"item_code": "PAINT-02", "description": "External painting/texture", "unit": "m2", "rate": 160, "category": "Painting"},
+    {"item_code": "DPC-01", "description": "Damp Proof Course (DPC)", "unit": "m3", "rate": 8200, "category": "DPC"},
+    {"item_code": "AT-01", "description": "Anti-termite chemical treatment", "unit": "m2", "rate": 55, "category": "Anti-termite"},
+    {"item_code": "PRELIM-01", "description": "Preliminaries, site overheads & rough MEP allowance (lump-sum placeholder)", "unit": "LS", "rate": 1, "category": "Preliminaries"}
+  ]
+}

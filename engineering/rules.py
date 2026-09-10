@@ -1,0 +1,97 @@
+"""
+Thumb-rule constants and default engineering assumptions used by
+engineering/calculations.py.
+
+These are typical values used in preliminary/conceptual estimation for
+small residential RCC buildings (Indian practice, commonly cited in
+estimation textbooks and CPWD/state DSR-style guidance). They are DEFAULTS
+ONLY — every one of them is editable from the Streamlit UI before the BOQ
+is finalized, and none of them should be treated as a structural design
+input.
+
+Where a rule is a range in common practice, we pick the mid-point as the
+default and note the range in the `note`/help text shown in the UI.
+"""
+from __future__ import annotations
+
+# Dry volume factor: converts wet (compacted) concrete volume to the dry
+# volume of loose materials (cement+sand+aggregate) needed - standard
+# factor used in Indian estimation practice.
+DRY_VOLUME_FACTOR = 1.54
+
+# Excavation: extra working space added on each side of a footing/trench
+# for shuttering & working room.
+EXCAVATION_WORKING_SPACE_M = 0.15
+
+# Excavation depth safety/side-slope allowance multiplier for soils that
+# require battering (very approximate, MVP-level only).
+SOIL_SIDE_SLOPE_FACTOR = {
+    "Soft soil": 1.15,
+    "Ordinary soil": 1.05,
+    "Hard soil": 1.0,
+    "Murrum/Gravel": 1.0,
+    "Rock": 1.0,
+}
+
+# PCC (lean concrete / mud mat) below footings
+DEFAULT_PCC_THICKNESS_M = 0.075  # 75 mm
+PCC_PROJECTION_BEYOND_FOOTING_M = 0.075  # 75 mm each side beyond footing edge
+
+# Reinforcement thumb rules: kg of steel per m3 of concrete, by member type.
+# (min, default/mid, max) - source: common preliminary-estimation ranges.
+STEEL_THUMB_RULE_KG_PER_M3 = {
+    "footing": (60.0, 80.0, 100.0),
+    "column": (140.0, 170.0, 200.0),
+    "beam": (110.0, 135.0, 160.0),
+    "slab": (70.0, 85.0, 100.0),
+    "plinth_beam": (100.0, 120.0, 140.0),
+}
+
+# Concrete grade -> approximate nominal mix ratio (cement:sand:aggregate)
+# used only for indicative material-split notes, NOT for structural design.
+CONCRETE_GRADE_NOMINAL_MIX = {
+    "M10": (1, 3, 6),
+    "M15": (1, 2, 4),
+    "M20": (1, 1.5, 3),
+    "M25": (1, 1, 2),
+}
+
+# Unit weight of steel reinforcement (kg/m3) - standard constant, used only
+# for cross-checks / sanity notes, not for the primary steel-quantity calc
+# (which uses the thumb-rule kg/m3-of-concrete method above).
+STEEL_DENSITY_KG_PER_M3 = 7850.0
+
+# Masonry unit sizes (m) - length x height x width, modular with 10mm mortar
+MASONRY_UNIT_SIZES_M = {
+    "Burnt clay brick (modular 190x90x90mm)": (0.20, 0.10, 0.10),
+    "Burnt clay brick (traditional 230x110x75mm)": (0.24, 0.12, 0.085),
+    "AAC block (600x200x200mm)": (0.61, 0.21, 0.20),
+    "Concrete solid block (400x200x200mm)": (0.41, 0.21, 0.20),
+    "CSEB / stabilized mud block (300x150x100mm)": (0.31, 0.16, 0.10),
+}
+
+# Mortar volume as a fraction of gross wall volume (rest is masonry units)
+MORTAR_VOLUME_FRACTION = {
+    "Burnt clay brick (modular 190x90x90mm)": 0.30,
+    "Burnt clay brick (traditional 230x110x75mm)": 0.30,
+    "AAC block (600x200x200mm)": 0.03,  # thin-bed adhesive joints
+    "Concrete solid block (400x200x200mm)": 0.12,
+    "CSEB / stabilized mud block (300x150x100mm)": 0.05,
+}
+
+# Formwork contact-area multipliers relative to concrete surfaces (MVP
+# simplification): we compute actual contact faces per member type in
+# calculations.py rather than a single blanket multiplier.
+
+# Flooring / waterproofing / paint coverage defaults
+FLOORING_COVERAGE_FACTOR = 1.0  # 1 m2 built-up ~ 1 m2 flooring (simplified)
+WATERPROOFING_LAYERS_DEFAULT = 1
+
+# DPC (damp proof course) thickness at plinth level
+DPC_THICKNESS_M = 0.025  # 25 mm
+
+# Anti-termite treatment is priced per sqm of plinth area (chemical barrier)
+
+DEFAULT_FLOOR_TO_FLOOR_HEIGHT_M = 3.0
+DEFAULT_FOOTING_DEPTH_M = 1.2
+DEFAULT_PLINTH_HEIGHT_M = 0.6
