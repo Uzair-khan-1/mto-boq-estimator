@@ -31,10 +31,56 @@ html, body, [class*="css"] {{
 }}
 
 /* ---------------------------------------------------------------- *
- * App background
+ * Force the light palette EVEN IF Streamlit resolves to its own dark
+ * theme (e.g. a viewer's browser is in dark mode, or they picked "Dark"
+ * / "Use system setting" in the app's own Settings menu - both override
+ * .streamlit/config.toml on a per-viewer basis and are a common reason a
+ * Streamlit app can look "flat black with white text" even though its
+ * config says base="light"). Overriding Streamlit's own CSS variables at
+ * the root - not just individual elements - is what makes every native
+ * widget resolve correctly regardless of that per-viewer setting.
  * ---------------------------------------------------------------- */
+:root, .stApp, [data-theme="dark"], [data-theme="light"] {{
+    --background-color: {config.BRAND_BG} !important;
+    --secondary-background-color: {config.BRAND_CARD} !important;
+    --text-color: {config.BRAND_TEXT} !important;
+    --primary-color: {config.BRAND_TEAL} !important;
+}}
+html, body, .stApp,
+[data-testid="stAppViewContainer"],
+[data-testid="stHeader"],
+[data-testid="stBottomBlockContainer"],
+[data-testid="stMain"] {{
+    background-color: {config.BRAND_BG} !important;
+}}
 [data-testid="stAppViewContainer"] > .main {{
-    background: linear-gradient(180deg, {config.BRAND_BG} 0%, #FFFFFF 360px);
+    background: linear-gradient(180deg, {config.BRAND_BG} 0%, {config.BRAND_CARD} 360px);
+}}
+/* Body text: everything defaults to the softer slate ink, not
+   Streamlit's own dark-mode white - headings/sidebar override this below. */
+p, span, label, li, div, .stMarkdown, [data-testid="stMarkdownContainer"],
+[data-testid="stMetricLabel"], [data-testid="stMetricValue"], [data-testid="stCaptionContainer"] {{
+    color: {config.BRAND_TEXT};
+}}
+
+/* ---------------------------------------------------------------- *
+ * Inputs (text/number/select/textarea/file-uploader) - forced to a
+ * white "card" look so they never inherit a dark fallback either.
+ * ---------------------------------------------------------------- */
+[data-baseweb="input"], [data-baseweb="select"] > div, [data-baseweb="textarea"],
+[data-baseweb="base-input"],
+[data-testid="stFileUploaderDropzone"],
+[data-testid="stTextInput"] input, [data-testid="stNumberInput"] input {{
+    background-color: {config.BRAND_CARD} !important;
+    color: {config.BRAND_TEXT} !important;
+    border-radius: 8px !important;
+    border-color: rgba(11, 30, 61, 0.18) !important;
+}}
+[data-testid="stDataFrame"], [data-testid="stTable"] {{
+    background-color: {config.BRAND_CARD} !important;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(11, 30, 61, 0.05);
 }}
 
 /* ---------------------------------------------------------------- *
@@ -73,14 +119,20 @@ html, body, [class*="css"] {{
 h1, h2, h3 {{ color: {config.BRAND_NAVY}; font-weight: 700; }}
 
 /* ---------------------------------------------------------------- *
- * Buttons
+ * Buttons - explicit background/text on EVERY variant (not just
+ * primary), so a secondary button never falls back to Streamlit's own
+ * dark-mode default (dark button + white text, which is what "Now:
+ * Accent/Button = White" in a black UI usually means in practice).
  * ---------------------------------------------------------------- */
 .stButton > button,
 .stDownloadButton > button,
-[data-testid="stFormSubmitButton"] button {{
+[data-testid="stFormSubmitButton"] button,
+[data-testid="stBaseButton-secondary"] {{
+    background-color: {config.BRAND_CARD} !important;
+    color: {config.BRAND_NAVY} !important;
     border-radius: 10px;
     font-weight: 600;
-    border: 1px solid rgba(11, 30, 61, 0.12);
+    border: 1.5px solid rgba(11, 30, 61, 0.18) !important;
     transition: transform 0.06s ease-in-out, box-shadow 0.15s ease-in-out;
 }}
 .stButton > button:hover,
@@ -88,36 +140,56 @@ h1, h2, h3 {{ color: {config.BRAND_NAVY}; font-weight: 700; }}
 [data-testid="stFormSubmitButton"] button:hover {{
     transform: translateY(-1px);
     box-shadow: 0 4px 14px rgba(13, 148, 136, 0.25);
-    border-color: {config.BRAND_TEAL};
+    border-color: {config.BRAND_TEAL} !important;
+    color: {config.BRAND_TEAL} !important;
 }}
 .stButton > button[kind="primary"],
-[data-testid="stFormSubmitButton"] button[kind="primary"] {{
-    background: linear-gradient(120deg, {config.BRAND_TEAL} 0%, #0F766E 100%);
-    border: none;
+[data-testid="stFormSubmitButton"] button[kind="primary"],
+[data-testid="stBaseButton-primary"] {{
+    background: linear-gradient(120deg, {config.BRAND_TEAL} 0%, #0F766E 100%) !important;
+    border: none !important;
+    color: #FFFFFF !important;
+}}
+.stButton > button[kind="primary"]:hover,
+[data-testid="stBaseButton-primary"]:hover {{
+    color: #FFFFFF !important;
+    box-shadow: 0 4px 14px rgba(13, 148, 136, 0.4);
 }}
 
 /* ---------------------------------------------------------------- *
- * Metric cards (Step 5: Subtotal / Contingency / Grand Total)
+ * Metric cards (Step 4 procurement summary + Step 5 cost summary both
+ * render exactly 3 st.metric()s in a row - nth-of-type gives each a
+ * distinct accent color: teal (informational) -> gold (subtotal-ish/
+ * highlight) -> orange (the final/grand-total figure), a small but
+ * genuinely useful "construction orange" accent rather than a random one.
  * ---------------------------------------------------------------- */
 [data-testid="stMetric"] {{
-    background: #FFFFFF;
+    background: {config.BRAND_CARD};
     border: 1px solid rgba(11, 30, 61, 0.08);
     border-left: 4px solid {config.BRAND_TEAL};
     border-radius: 12px;
     padding: 14px 18px;
-    box-shadow: 0 2px 10px rgba(11, 30, 61, 0.05);
+    box-shadow: 0 2px 10px rgba(11, 30, 61, 0.06);
 }}
+[data-testid="column"]:nth-of-type(2) [data-testid="stMetric"] {{ border-left-color: {config.BRAND_GOLD}; }}
+[data-testid="column"]:nth-of-type(3) [data-testid="stMetric"] {{ border-left-color: {config.BRAND_ORANGE}; }}
 [data-testid="stMetricLabel"] {{ color: {config.BRAND_NAVY}; font-weight: 600; }}
 [data-testid="stMetricValue"] {{ color: {config.BRAND_NAVY}; }}
 
 /* ---------------------------------------------------------------- *
- * Expanders (Steps 3 / 4 / 5 rely on these heavily)
+ * Expanders (Steps 3 / 4 / 5 rely on these heavily) + generic bordered
+ * containers (st.container(border=True)) - the "white card, soft
+ * shadow, 12px radius" treatment, applied consistently everywhere a
+ * card-like grouping appears.
  * ---------------------------------------------------------------- */
-[data-testid="stExpander"] {{
+[data-testid="stExpander"],
+[data-testid="stVerticalBlockBorderWrapper"] {{
+    background: {config.BRAND_CARD};
     border: 1px solid rgba(11, 30, 61, 0.08);
     border-radius: 12px;
-    box-shadow: 0 1px 6px rgba(11, 30, 61, 0.04);
+    box-shadow: 0 1px 8px rgba(11, 30, 61, 0.05);
 }}
+[data-testid="stExpander"] summary {{ color: {config.BRAND_NAVY}; font-weight: 600; }}
 
 /* ---------------------------------------------------------------- *
  * Sidebar logo (st.logo) - Streamlit renders this quite small by
@@ -149,14 +221,39 @@ h1, h2, h3 {{ color: {config.BRAND_NAVY}; font-weight: 700; }}
 }}
 [data-testid="stSidebar"] * {{ color: #E8EEF5 !important; }}
 [data-testid="stSidebar"] hr {{ border-color: rgba(255, 255, 255, 0.15); }}
+/* A solid teal fill reads far better against the navy sidebar than a
+   near-transparent white tint (which is what makes a dark UI's buttons
+   look like flat white-on-black with no real accent color). */
 [data-testid="stSidebar"] .stButton > button {{
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: {config.BRAND_TEAL} !important;
+    border: none !important;
     color: #FFFFFF !important;
+    font-weight: 700;
 }}
 [data-testid="stSidebar"] .stButton > button:hover {{
-    background: {config.BRAND_TEAL};
-    border-color: {config.BRAND_TEAL};
+    background: {config.BRAND_TEAL_BRIGHT} !important;
+    color: {config.BRAND_NAVY} !important;
+    box-shadow: 0 4px 14px rgba(45, 212, 191, 0.35);
+}}
+
+/* ---------------------------------------------------------------- *
+ * Disclaimer captions - a subtle construction-orange left border marks
+ * them as "read this", distinct from ordinary gray captions elsewhere.
+ * Applied via the .cl-disclaimer helper class (see app.py) rather than
+ * a blanket caption selector, since not every caption is a disclaimer.
+ * ---------------------------------------------------------------- */
+.cl-disclaimer {{
+    display: block;
+    border-left: 3px solid {config.BRAND_ORANGE};
+    padding: 4px 10px;
+    border-radius: 0 6px 6px 0;
+    background: rgba(249, 115, 22, 0.08);
+    font-size: 0.78rem;
+    opacity: 0.95;
+}}
+[data-testid="stSidebar"] .cl-disclaimer {{
+    background: rgba(249, 115, 22, 0.14);
+    color: #FFE8D9 !important;
 }}
 
 /* ---------------------------------------------------------------- *

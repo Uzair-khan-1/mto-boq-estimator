@@ -32,7 +32,10 @@ BRAND_NAVY_LIGHT = "#123A5A"
 BRAND_TEAL = "#0D9488"
 BRAND_TEAL_BRIGHT = "#2DD4BF"
 BRAND_GOLD = "#FBBF24"
-BRAND_BG = "#F4F7FB"
+BRAND_ORANGE = "#F97316"  # "construction orange" - used sparingly as a 2nd accent (see ui/theme.py)
+BRAND_BG = "#F8FAFC"
+BRAND_CARD = "#FFFFFF"
+BRAND_TEXT = "#1E293B"  # body text - softer than BRAND_NAVY, which stays reserved for headings
 
 # Groq model IDs. Kept in one place so they're easy to bump as Groq
 # updates its free-tier vision-capable model lineup.

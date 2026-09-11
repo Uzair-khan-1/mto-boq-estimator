@@ -32,6 +32,14 @@ TITLE_STYLE = ParagraphStyle("TitleX", parent=styles["Title"], fontSize=18)
 H2_STYLE = ParagraphStyle("H2X", parent=styles["Heading2"], spaceBefore=12, spaceAfter=6)
 NORMAL = styles["Normal"]
 SMALL = ParagraphStyle("Small", parent=styles["Normal"], fontSize=8, leading=10)
+# Used for Code/Category/Unit/Confidence cells: plain strings in a ReportLab
+# Table do NOT wrap - a value wider than its column just overlaps the next
+# cell. Item codes now go up to ~20 chars (e.g. "FTG-CONC-01-CEMENT" from
+# the cement/sand/aggregate breakdown) and categories up to ~19 chars
+# ("Procurement Summary"), so every text cell is wrapped in a Paragraph
+# using this style rather than passed as a raw string.
+CODE_STYLE = ParagraphStyle("Code", parent=styles["Normal"], fontSize=7.5, leading=9, fontName="Helvetica-Bold")
+CELL_STYLE = ParagraphStyle("Cell", parent=styles["Normal"], fontSize=7.5, leading=9)
 DISCLAIMER_STYLE = ParagraphStyle(
     "Disclaimer", parent=styles["Normal"], fontSize=9, textColor=colors.HexColor("#8a1c1c"),
     borderColor=colors.HexColor("#8a1c1c"), borderWidth=0.5, borderPadding=8, backColor=colors.HexColor("#fdf0f0"),
@@ -68,15 +76,28 @@ def _project_info_table(project_inputs: ProjectInputs) -> Table:
 
 
 def _mto_table(mto_items: List[QuantityLineItem], unit_system: str = units.SI) -> Table:
+    # Column widths sum to 224mm, comfortably inside the ~267mm usable width
+    # of a landscape A4 page with 15mm margins on each side. Every text
+    # column uses a Paragraph (wraps) rather than a raw string (doesn't) -
+    # see the CODE_STYLE/CELL_STYLE comment above.
     header = ["Code", "Category", "Description", "Unit", "Qty", "Conf."]
     data = [header]
     row_confidences = []
     for i in mto_items:
         qty, unit = units.quantity_and_unit_for_display(i.quantity, i.unit, unit_system)
-        data.append([i.item_code, i.category, Paragraph(i.description, SMALL), unit, f"{qty:,.2f}", i.confidence.value])
+        data.append(
+            [
+                Paragraph(i.item_code, CODE_STYLE),
+                Paragraph(i.category, CELL_STYLE),
+                Paragraph(i.description, SMALL),
+                Paragraph(unit, CELL_STYLE),
+                f"{qty:,.2f}",
+                Paragraph(i.confidence.value, CELL_STYLE),
+            ]
+        )
         row_confidences.append(i.confidence.value)
 
-    t = Table(data, colWidths=[22 * mm, 22 * mm, 75 * mm, 15 * mm, 22 * mm, 18 * mm], repeatRows=1)
+    t = Table(data, colWidths=[34 * mm, 30 * mm, 108 * mm, 14 * mm, 22 * mm, 16 * mm], repeatRows=1)
     style = [
         ("BACKGROUND", (0, 0), (-1, 0), TABLE_HEADER_BG),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
@@ -85,6 +106,8 @@ def _mto_table(mto_items: List[QuantityLineItem], unit_system: str = units.SI) -
         ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#CCCCCC")),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("ALIGN", (4, 1), (4, -1), "RIGHT"),
+        ("TOPPADDING", (0, 1), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 1), (-1, -1), 3),
     ]
     for idx, conf in enumerate(row_confidences, start=1):
         if conf == "Low":
@@ -94,7 +117,11 @@ def _mto_table(mto_items: List[QuantityLineItem], unit_system: str = units.SI) -
 
 
 def _boq_table(boq_items: List[BOQLineItem], currency_symbol: str, unit_system: str = units.SI) -> Table:
-    header = ["Code", "Description", "Unit", "Qty (+wastage)", "Rate", "Amount"]
+    # Column widths sum to 259mm (landscape A4, 15mm margins -> ~267mm
+    # usable). Remarks (e.g. "Rate x1.85 for 'Premium' finish level.") is
+    # new - it carries information that used to be silently dropped from
+    # the PDF - and every text column wraps via Paragraph.
+    header = ["Code", "Description", "Unit", "Qty (+wastage)", "Rate", "Amount", "Remarks"]
     data = [header]
     row_confidences = []
     for i in boq_items:
@@ -102,17 +129,18 @@ def _boq_table(boq_items: List[BOQLineItem], currency_symbol: str, unit_system: 
         rate = units.display_rate(i.rate, i.unit, unit_system)
         data.append(
             [
-                i.item_code,
+                Paragraph(i.item_code, CODE_STYLE),
                 Paragraph(i.description, SMALL),
-                unit,
+                Paragraph(unit, CELL_STYLE),
                 f"{qty_wastage:,.2f}",
                 f"{currency_symbol}{rate:,.2f}",
                 f"{currency_symbol}{i.amount:,.2f}",
+                Paragraph(i.remarks, CELL_STYLE) if i.remarks else "",
             ]
         )
         row_confidences.append(i.confidence.value)
 
-    t = Table(data, colWidths=[20 * mm, 80 * mm, 14 * mm, 26 * mm, 22 * mm, 26 * mm], repeatRows=1)
+    t = Table(data, colWidths=[24 * mm, 68 * mm, 13 * mm, 26 * mm, 24 * mm, 26 * mm, 78 * mm], repeatRows=1)
     style = [
         ("BACKGROUND", (0, 0), (-1, 0), TABLE_HEADER_BG),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
@@ -120,7 +148,9 @@ def _boq_table(boq_items: List[BOQLineItem], currency_symbol: str, unit_system: 
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#CCCCCC")),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("ALIGN", (3, 1), (-1, -1), "RIGHT"),
+        ("ALIGN", (3, 1), (5, -1), "RIGHT"),
+        ("TOPPADDING", (0, 1), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 1), (-1, -1), 3),
     ]
     for idx, conf in enumerate(row_confidences, start=1):
         if conf == "Low":

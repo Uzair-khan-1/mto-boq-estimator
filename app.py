@@ -87,7 +87,7 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.caption(f"\u26a0\ufe0f {config.DISCLAIMER_TEXT_SHORT}")
+    st.markdown(f'<span class="cl-disclaimer">\u26a0\ufe0f {config.DISCLAIMER_TEXT_SHORT}</span>', unsafe_allow_html=True)
 
 theme.render_hero()
 
@@ -639,7 +639,7 @@ def step_5():
                 use_container_width=True,
             )
 
-        st.caption(f"\u26a0\ufe0f {config.DISCLAIMER_TEXT_SHORT}")
+        st.markdown(f'<span class="cl-disclaimer">\u26a0\ufe0f {config.DISCLAIMER_TEXT_SHORT}</span>', unsafe_allow_html=True)
 
     if st.button("\u2190 Back to Step 4 (MTO)"):
         go_to_step(4)
