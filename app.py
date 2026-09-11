@@ -42,8 +42,10 @@ STEP_LABELS = ["1. Project Setup", "2. AI Analysis", "3. Verify Data", "4. MTO",
 with st.sidebar:
     st.title(config.APP_NAME)
     st.caption(f"v{config.APP_VERSION} \u00b7 MVP")
-st.session_state["groq_api_key"] = config.get_secret("GROQ_API_KEY", "")
-st.markdown("---")
+
+    st.session_state["groq_api_key"] = config.get_secret("GROQ_API_KEY", "")
+
+    st.markdown("---")
     st.markdown("### Progress")
     for i, label in enumerate(STEP_LABELS, start=1):
         marker = "\u2705" if st.session_state["step"] > i else ("\u27a1\ufe0f" if st.session_state["step"] == i else "\u2b1c")
