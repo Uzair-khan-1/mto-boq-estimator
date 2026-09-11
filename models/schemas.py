@@ -189,6 +189,16 @@ class QuantityLineItem(BaseModel):
     formula: str
     inputs_used: Dict[str, float] = Field(default_factory=dict)
     assumptions: List[str] = Field(default_factory=list)
+    # True for a derived procurement-reference line (e.g. the cement/sand/
+    # aggregate that make up a concrete pour already priced as one composite
+    # m3 rate) - its cost is already counted in `parent_item_code`'s BOQ
+    # line, so generate_boq() must NOT create a separate priced line for it
+    # (that would double-count the cost). Still shown in the MTO (Step 4)
+    # because that's exactly the quantity someone needs to go buy cement/
+    # sand/aggregate. See mto_boq/boq_generator.py and engineering/
+    # calculations.py:concrete_material_breakdown()/mortar_material_breakdown().
+    informational: bool = False
+    parent_item_code: str = ""
 
 
 class BOQLineItem(BaseModel):

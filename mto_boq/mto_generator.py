@@ -45,6 +45,9 @@ def mto_to_dataframe(items: List[QuantityLineItem], unit_system: str = units.SI)
                 "Quantity": round(qty, 3),
                 "Confidence": i.confidence.value,
                 "Formula": i.formula,
+                "Procurement Note": (
+                    f"Reference qty only - priced under {i.parent_item_code} above" if i.informational else ""
+                ),
             }
         )
     return pd.DataFrame(rows)
@@ -53,7 +56,19 @@ def mto_to_dataframe(items: List[QuantityLineItem], unit_system: str = units.SI)
 def compute_reinforcement_summary(items: List[QuantityLineItem]) -> dict:
     structural_categories = {"Footing", "Column", "Beam", "Slab"}
     structural_concrete = sum(
-        i.quantity for i in items if i.category in structural_categories and i.unit == "m3"
+        i.quantity for i in items if i.category in structural_categories and i.unit == "m3" and not i.informational
     )
-    total_steel = sum(i.quantity for i in items if i.category == "Reinforcement")
+    total_steel = sum(i.quantity for i in items if i.category == "Reinforcement" and not i.informational)
     return steel_sanity_check(structural_concrete, total_steel)
+
+
+def compute_procurement_totals(items: List[QuantityLineItem]) -> dict:
+    """Pulls out the 3 project-wide SUMMARY-* rows (see
+    engineering/calculations.py:compute_procurement_summary) for a compact
+    "Procurement Summary" metrics row in the UI (Step 4)."""
+    by_code = {i.item_code: i for i in items}
+    return {
+        "cement_bags": by_code["SUMMARY-CEMENT"].quantity if "SUMMARY-CEMENT" in by_code else 0.0,
+        "sand_m3": by_code["SUMMARY-SAND"].quantity if "SUMMARY-SAND" in by_code else 0.0,
+        "aggregate_m3": by_code["SUMMARY-AGG"].quantity if "SUMMARY-AGG" in by_code else 0.0,
+    }

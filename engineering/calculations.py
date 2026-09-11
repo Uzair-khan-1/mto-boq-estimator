@@ -77,6 +77,225 @@ def compute_excavation(footings: FootingSpec, soil_type: str) -> QuantityLineIte
 
 
 # --------------------------------------------------------------------------
+# Cement / sand / aggregate procurement breakdown
+# --------------------------------------------------------------------------
+# These functions turn a cast volume (concrete OR mortar) into the raw
+# materials someone actually has to go buy: cement bags, sand, and (for
+# concrete only) coarse aggregate/crush. They are called right after each
+# concrete/mortar QuantityLineItem is built (see the helper functions below
+# and generate_all_quantities()) and return QuantityLineItems flagged
+# `informational=True` - their cost is already inside the parent item's
+# composite BOQ rate (e.g. FTG-CONC-01's PKR/m3 rate already covers its own
+# cement+sand+aggregate+labour), so generate_boq() skips pricing them to
+# avoid double-counting. They exist purely so the MTO can answer "how many
+# bags of cement / how much sand / how much crush do I need to buy."
+
+
+def concrete_material_breakdown(wet_volume_m3: float, grade_label: str) -> dict:
+    """Standard nominal-mix, dry-volume-factor method: dry_volume =
+    wet_volume x 1.54, then split by the grade's cement:sand:aggregate
+    ratio parts. Indicative preliminary-estimation practice, not a lab mix
+    design - see engineering/rules.py for the full method note."""
+    cement_parts, sand_parts, agg_parts = rules.resolve_nominal_mix(grade_label)
+    total_parts = cement_parts + sand_parts + agg_parts
+    dry_volume_m3 = wet_volume_m3 * rules.DRY_VOLUME_FACTOR
+    cement_volume_m3 = dry_volume_m3 * (cement_parts / total_parts)
+    sand_volume_m3 = dry_volume_m3 * (sand_parts / total_parts)
+    aggregate_volume_m3 = dry_volume_m3 * (agg_parts / total_parts)
+    cement_bags = (cement_volume_m3 * rules.CEMENT_DENSITY_KG_PER_M3) / rules.CEMENT_BAG_WEIGHT_KG
+    return {
+        "mix_ratio": (cement_parts, sand_parts, agg_parts),
+        "dry_volume_m3": dry_volume_m3,
+        "cement_volume_m3": cement_volume_m3,
+        "cement_bags": cement_bags,
+        "sand_volume_m3": sand_volume_m3,
+        "aggregate_volume_m3": aggregate_volume_m3,
+    }
+
+
+def mortar_material_breakdown(mortar_volume_m3: float, mix_ratio: tuple[float, float]) -> dict:
+    """Same idea for cement:sand-only mortar (masonry bedding/jointing,
+    plaster) - no coarse aggregate, and mortar's own (lower) dry-volume
+    factor since there's no coarse material to bulk the loose mix up."""
+    cement_parts, sand_parts = mix_ratio
+    total_parts = cement_parts + sand_parts
+    dry_volume_m3 = mortar_volume_m3 * rules.MORTAR_DRY_VOLUME_FACTOR
+    cement_volume_m3 = dry_volume_m3 * (cement_parts / total_parts)
+    sand_volume_m3 = dry_volume_m3 * (sand_parts / total_parts)
+    cement_bags = (cement_volume_m3 * rules.CEMENT_DENSITY_KG_PER_M3) / rules.CEMENT_BAG_WEIGHT_KG
+    return {
+        "mix_ratio": (cement_parts, sand_parts),
+        "dry_volume_m3": dry_volume_m3,
+        "cement_volume_m3": cement_volume_m3,
+        "cement_bags": cement_bags,
+        "sand_volume_m3": sand_volume_m3,
+    }
+
+
+def _concrete_material_items(parent: QuantityLineItem, grade_label: str) -> List[QuantityLineItem]:
+    bd = concrete_material_breakdown(parent.quantity, grade_label)
+    c, s, a = bd["mix_ratio"]
+    mix_str = f"{c:g}:{s:g}:{a:g}"
+    common_inputs = {
+        "wet_volume_m3": parent.quantity,
+        "dry_volume_factor": rules.DRY_VOLUME_FACTOR,
+        "mix_ratio_cement": c,
+        "mix_ratio_sand": s,
+        "mix_ratio_aggregate": a,
+    }
+    procurement_note = (
+        "Procurement reference quantity only - its cost is already included in "
+        f"{parent.item_code}'s composite rate above; do NOT price it again separately."
+    )
+    wastage_note = (
+        "Net theoretical requirement (no site wastage/spillage margin added) - "
+        "order a few percent extra for handling losses."
+    )
+    return [
+        QuantityLineItem(
+            item_code=f"{parent.item_code}-CEMENT",
+            description=f"Cement for {parent.description} (nominal mix {mix_str})",
+            category="Concrete Materials",
+            unit="bags",
+            quantity=round(bd["cement_bags"], 1),
+            confidence=parent.confidence,
+            formula="bags = wet_volume × dry_volume_factor × cement_ratio/total_ratio × cement_density ÷ bag_weight",
+            inputs_used={**common_inputs, "cement_density_kg_per_m3": rules.CEMENT_DENSITY_KG_PER_M3, "bag_weight_kg": rules.CEMENT_BAG_WEIGHT_KG},
+            assumptions=[f"Nominal mix {mix_str} (cement:sand:aggregate) assumed for grade {grade_label}.", f"{rules.CEMENT_BAG_WEIGHT_KG:.0f}kg bags @ {rules.CEMENT_DENSITY_KG_PER_M3:.0f} kg/m3 loose cement density.", procurement_note, wastage_note],
+            informational=True,
+            parent_item_code=parent.item_code,
+        ),
+        QuantityLineItem(
+            item_code=f"{parent.item_code}-SAND",
+            description=f"Sand for {parent.description} (nominal mix {mix_str})",
+            category="Concrete Materials",
+            unit="m3",
+            quantity=round(bd["sand_volume_m3"], 3),
+            confidence=parent.confidence,
+            formula="sand_volume = wet_volume × dry_volume_factor × sand_ratio/total_ratio",
+            inputs_used=dict(common_inputs),
+            assumptions=[f"Nominal mix {mix_str} (cement:sand:aggregate) assumed for grade {grade_label}.", procurement_note, wastage_note],
+            informational=True,
+            parent_item_code=parent.item_code,
+        ),
+        QuantityLineItem(
+            item_code=f"{parent.item_code}-AGG",
+            description=f"Aggregate/crush for {parent.description} (nominal mix {mix_str})",
+            category="Concrete Materials",
+            unit="m3",
+            quantity=round(bd["aggregate_volume_m3"], 3),
+            confidence=parent.confidence,
+            formula="aggregate_volume = wet_volume × dry_volume_factor × aggregate_ratio/total_ratio",
+            inputs_used=dict(common_inputs),
+            assumptions=[f"Nominal mix {mix_str} (cement:sand:aggregate) assumed for grade {grade_label}.", procurement_note, wastage_note],
+            informational=True,
+            parent_item_code=parent.item_code,
+        ),
+    ]
+
+
+def _mortar_material_items(
+    parent: QuantityLineItem, mortar_volume_m3: float, mix_ratio: tuple[float, float], mix_purpose: str
+) -> List[QuantityLineItem]:
+    """`mortar_volume_m3` is passed explicitly rather than read off
+    `parent.quantity`, because `parent` isn't always a volume: masonry
+    mortar (MAS-02) IS a volume, but plaster (PLAS-01/02) is stored as an
+    AREA (m2) - the caller must convert area x thickness to a volume
+    before calling this, or the cement/sand figures come out ~80x too
+    high (plaster area treated as if it were already a cast volume)."""
+    bd = mortar_material_breakdown(mortar_volume_m3, mix_ratio)
+    c, s = bd["mix_ratio"]
+    mix_str = f"{c:g}:{s:g}"
+    common_inputs = {
+        "mortar_volume_m3": mortar_volume_m3,
+        "dry_volume_factor": rules.MORTAR_DRY_VOLUME_FACTOR,
+        "mix_ratio_cement": c,
+        "mix_ratio_sand": s,
+    }
+    procurement_note = (
+        "Procurement reference quantity only - its cost is already included in "
+        f"{parent.item_code}'s composite rate above; do NOT price it again separately."
+    )
+    wastage_note = "Net theoretical requirement (no site wastage/spillage margin added)."
+    return [
+        QuantityLineItem(
+            item_code=f"{parent.item_code}-CEMENT",
+            description=f"Cement for {mix_purpose} (mix {mix_str})",
+            category="Concrete Materials",
+            unit="bags",
+            quantity=round(bd["cement_bags"], 1),
+            confidence=parent.confidence,
+            formula="bags = mortar_volume × dry_volume_factor × cement_ratio/total_ratio × cement_density ÷ bag_weight",
+            inputs_used={**common_inputs, "cement_density_kg_per_m3": rules.CEMENT_DENSITY_KG_PER_M3, "bag_weight_kg": rules.CEMENT_BAG_WEIGHT_KG},
+            assumptions=[f"Standard {mix_str} (cement:sand) mortar mix assumed for {mix_purpose}.", procurement_note, wastage_note],
+            informational=True,
+            parent_item_code=parent.item_code,
+        ),
+        QuantityLineItem(
+            item_code=f"{parent.item_code}-SAND",
+            description=f"Sand for {mix_purpose} (mix {mix_str})",
+            category="Concrete Materials",
+            unit="m3",
+            quantity=round(bd["sand_volume_m3"], 3),
+            confidence=parent.confidence,
+            formula="sand_volume = mortar_volume × dry_volume_factor × sand_ratio/total_ratio",
+            inputs_used=dict(common_inputs),
+            assumptions=[f"Standard {mix_str} (cement:sand) mortar mix assumed for {mix_purpose}.", procurement_note, wastage_note],
+            informational=True,
+            parent_item_code=parent.item_code,
+        ),
+    ]
+
+
+def compute_procurement_summary(items: List[QuantityLineItem]) -> List[QuantityLineItem]:
+    """Rolls every per-member cement/sand/aggregate breakdown line up into
+    one project-wide total each - the numbers most useful to actually hand
+    to a supplier ("I need X bags of cement, Y m3 of sand, Z m3 of crush")."""
+    cement_bags = sum(i.quantity for i in items if i.item_code.endswith("-CEMENT"))
+    sand_m3 = sum(i.quantity for i in items if i.item_code.endswith("-SAND"))
+    agg_m3 = sum(i.quantity for i in items if i.item_code.endswith("-AGG"))
+    conf = ConfidenceLevel.LOW  # a sum of many thumb-rule-derived figures inherits the weakest confidence
+    return [
+        QuantityLineItem(
+            item_code="SUMMARY-CEMENT",
+            description="TOTAL cement required (all concrete + masonry mortar + plaster, project-wide)",
+            category="Procurement Summary",
+            unit="bags",
+            quantity=round(cement_bags, 0),
+            confidence=conf,
+            formula="sum of every *-CEMENT line above",
+            inputs_used={"line_items_summed": float(sum(1 for i in items if i.item_code.endswith("-CEMENT")))},
+            assumptions=["Net theoretical requirement - add your own site wastage margin (commonly 3-5%) before ordering."],
+            informational=True,
+        ),
+        QuantityLineItem(
+            item_code="SUMMARY-SAND",
+            description="TOTAL sand required (all concrete + masonry mortar + plaster, project-wide)",
+            category="Procurement Summary",
+            unit="m3",
+            quantity=round(sand_m3, 2),
+            confidence=conf,
+            formula="sum of every *-SAND line above",
+            inputs_used={"line_items_summed": float(sum(1 for i in items if i.item_code.endswith("-SAND")))},
+            assumptions=["Net theoretical requirement - add your own site wastage margin (commonly 5-10%) before ordering."],
+            informational=True,
+        ),
+        QuantityLineItem(
+            item_code="SUMMARY-AGG",
+            description="TOTAL aggregate/crush required (concrete only, project-wide)",
+            category="Procurement Summary",
+            unit="m3",
+            quantity=round(agg_m3, 2),
+            confidence=conf,
+            formula="sum of every *-AGG line above",
+            inputs_used={"line_items_summed": float(sum(1 for i in items if i.item_code.endswith("-AGG")))},
+            assumptions=["Net theoretical requirement - add your own site wastage margin (commonly 5-10%) before ordering."],
+            informational=True,
+        ),
+    ]
+
+
+# --------------------------------------------------------------------------
 # PCC (lean concrete) below footings
 # --------------------------------------------------------------------------
 
@@ -623,6 +842,60 @@ def compute_anti_termite(plinth_area_per_floor: Estimate) -> QuantityLineItem:
 
 
 # --------------------------------------------------------------------------
+# Doors & windows (supply + installation)
+# --------------------------------------------------------------------------
+
+
+def compute_doors_windows(openings: OpeningsSpec, num_floors: float) -> List[QuantityLineItem]:
+    """Doors/windows are already captured (count + avg area) for the wall-
+    opening deduction in compute_masonry() - this prices them as their own
+    procurable BOQ items, since a real residential BOQ has to budget for
+    them (a door/window schedule is one of the biggest single procurement
+    line items on a house). Priced per DOOR (a fixed-size assumption is
+    reasonable for cost since door sizes vary little) but per m2 of WINDOW
+    area (window cost scales with size, unlike doors)."""
+    door_count = openings.door_count_per_floor.value * num_floors
+    window_count = openings.window_count_per_floor.value * num_floors
+    window_area = window_count * openings.avg_window_area_sqm.value
+
+    return [
+        QuantityLineItem(
+            item_code="DOOR-01",
+            description="Doors - supply & installation (frame/chaukhat + hardware, standard residential size)",
+            category="Doors",
+            unit="Nos",
+            quantity=round(door_count),
+            confidence=combine_confidence(openings.door_count_per_floor),
+            formula="count = door_count_per_floor × num_floors",
+            inputs_used={"door_count_per_floor": openings.door_count_per_floor.value, "num_floors": num_floors},
+            assumptions=[
+                "Rate assumes a standard-size residential door (~0.9m x 2.1m); unusually large/oversized doors will cost more per unit.",
+                "Finish Level (Step 1) scales the door quality/cost tier - see engineering/rules.py FINISH_LEVEL_RATE_MULTIPLIERS.",
+            ],
+        ),
+        QuantityLineItem(
+            item_code="WINDOW-01",
+            description="Windows - supply & installation (aluminium frame, glazing, hardware)",
+            category="Windows",
+            unit="m2",
+            quantity=round(window_area, 2),
+            confidence=combine_confidence(openings.window_count_per_floor, openings.avg_window_area_sqm),
+            formula="area = window_count_per_floor × avg_window_area_sqm × num_floors",
+            inputs_used={
+                "window_count_per_floor": openings.window_count_per_floor.value,
+                "avg_window_area_sqm": openings.avg_window_area_sqm.value,
+                "num_floors": num_floors,
+                "total_window_count": window_count,
+            },
+            assumptions=[
+                "Priced per m2 of window area (standard aluminium sliding/casement) - UPVC or specialty glazing costs more.",
+                "Finish Level (Step 1) scales the window quality/cost tier - see engineering/rules.py FINISH_LEVEL_RATE_MULTIPLIERS.",
+            ],
+        ),
+    ]
+
+
+# --------------------------------------------------------------------------
 # Reinforcement sanity cross-check (not a BOQ line, just a diagnostic)
 # --------------------------------------------------------------------------
 
@@ -649,34 +922,68 @@ def steel_sanity_check(structural_concrete_m3: float, total_steel_kg: float) -> 
 
 
 def generate_all_quantities(params: ExtractedBuildingParams, project_inputs: ProjectInputs) -> List[QuantityLineItem]:
-    """Run every calculation function and return the full flat MTO list."""
+    """Run every calculation function and return the full flat MTO list.
+
+    Every concrete/mortar-producing item is immediately followed by its own
+    cement/sand/(aggregate) procurement breakdown (informational=True lines
+    - see _concrete_material_items/_mortar_material_items) so the two never
+    drift apart, and a project-wide cement/sand/aggregate rollup is added
+    at the end (compute_procurement_summary)."""
     num_floors = params.num_floors.value
     items: List[QuantityLineItem] = []
 
     items.append(compute_excavation(params.footings, project_inputs.soil_type))
-    items.append(compute_pcc(params.footings, project_inputs.pcc_grade))
+
+    pcc = compute_pcc(params.footings, project_inputs.pcc_grade)
+    items.append(pcc)
+    items.extend(_concrete_material_items(pcc, project_inputs.pcc_grade))
 
     ftg_conc = compute_footing_concrete(params.footings, project_inputs.concrete_grade_footing)
     items.append(ftg_conc)
+    items.extend(_concrete_material_items(ftg_conc, project_inputs.concrete_grade_footing))
     items.append(compute_footing_steel(ftg_conc, params.footings))
 
     col_conc = compute_column_concrete(params.columns, num_floors, project_inputs.concrete_grade_column)
     items.append(col_conc)
+    items.extend(_concrete_material_items(col_conc, project_inputs.concrete_grade_column))
     items.append(compute_column_steel(col_conc))
 
     beam_conc = compute_beam_concrete(params.beams, num_floors, project_inputs.concrete_grade_beam)
     items.append(beam_conc)
+    items.extend(_concrete_material_items(beam_conc, project_inputs.concrete_grade_beam))
     items.append(compute_beam_steel(beam_conc))
 
     slab_conc = compute_slab_concrete(params.slabs, num_floors, project_inputs.concrete_grade_slab)
     items.append(slab_conc)
+    items.extend(_concrete_material_items(slab_conc, project_inputs.concrete_grade_slab))
     items.append(compute_slab_steel(slab_conc))
 
     items.extend(compute_formwork(params.footings, params.columns, params.beams, params.slabs, num_floors))
 
     masonry_items, net_wall_area = compute_masonry(params.walls, params.openings, num_floors)
     items.extend(masonry_items)
-    items.extend(compute_plaster(net_wall_area, params.walls, project_inputs))
+    mortar_item = next((i for i in masonry_items if i.item_code == "MAS-02"), None)
+    if mortar_item is not None:
+        # MAS-02's quantity IS already a volume (m3) - use it directly.
+        items.extend(
+            _mortar_material_items(mortar_item, mortar_item.quantity, rules.MASONRY_MORTAR_MIX_RATIO, "masonry mortar (bedding/jointing)")
+        )
+
+    plaster_items = compute_plaster(net_wall_area, params.walls, project_inputs)
+    items.extend(plaster_items)
+    for p_item in plaster_items:
+        # PLAS-01/02's quantity is an AREA (m2), not a volume - convert
+        # area x thickness to get the actual mortar volume cast.
+        if p_item.item_code == "PLAS-01":
+            purpose = "internal plaster"
+            thickness_m = project_inputs.plaster_thickness_internal_mm / 1000.0
+        else:
+            purpose = "external plaster"
+            thickness_m = project_inputs.plaster_thickness_external_mm / 1000.0
+        plaster_volume_m3 = p_item.quantity * thickness_m
+        items.extend(_mortar_material_items(p_item, plaster_volume_m3, rules.PLASTER_MORTAR_MIX_RATIO, purpose))
+
+    items.extend(compute_doors_windows(params.openings, num_floors))
 
     if project_inputs.include_flooring:
         items.append(compute_flooring(params.slabs, num_floors))
@@ -685,8 +992,12 @@ def generate_all_quantities(params: ExtractedBuildingParams, project_inputs: Pro
     if project_inputs.include_painting:
         items.extend(compute_painting(net_wall_area))
     if project_inputs.include_dpc:
-        items.append(compute_dpc(params.walls))
+        dpc = compute_dpc(params.walls)
+        items.append(dpc)
+        items.extend(_concrete_material_items(dpc, rules.DPC_ASSUMED_GRADE))
     if project_inputs.include_anti_termite:
         items.append(compute_anti_termite(params.plinth_area_per_floor_sqm))
+
+    items.extend(compute_procurement_summary(items))
 
     return items

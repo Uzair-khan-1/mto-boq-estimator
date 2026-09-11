@@ -10,6 +10,14 @@ Takes the deterministic MTO quantities and applies:
    not compute MEP quantities, so this is clearly flagged as a placeholder.
 4. Overall contingency percentage -> grand total
 
+Quantity items flagged `informational=True` (the cement/sand/aggregate
+breakdown of each concrete/mortar pour - see engineering/calculations.py)
+are skipped entirely here: their cost already lives inside their parent
+item's composite rate, so pricing them again would double-count. They're
+still fully visible in the MTO (Step 4) - that's a deliberate MTO-vs-BOQ
+split: MTO is the full procurement-grade material list, BOQ is the priced
+summary using composite pay items.
+
 No AI involvement here either - pure arithmetic over user-approved inputs.
 """
 from __future__ import annotations
@@ -30,7 +38,11 @@ from models.schemas import (
 )
 from utils import units
 
-# Maps a quantity item's category to the relevant wastage-factor field name
+# Maps a quantity item's category to the relevant wastage-factor field name.
+# "Concrete Materials" and "Procurement Summary" items are always
+# `informational=True` and skipped entirely in generate_boq() before this
+# lookup would even matter (see the loop below) - listed here anyway so the
+# mapping stays a complete, self-documenting reference of every category.
 CATEGORY_TO_WASTAGE_FIELD = {
     "Excavation": None,  # no wastage applied to excavated earth
     "PCC": "concrete_pct",
@@ -47,6 +59,10 @@ CATEGORY_TO_WASTAGE_FIELD = {
     "Painting": "paint_pct",
     "DPC": "concrete_pct",
     "Anti-termite": "misc_pct",
+    "Doors": None,  # supply+install rate is already an exact per-unit/per-area price
+    "Windows": None,
+    "Concrete Materials": None,  # informational-only; never priced (see generate_boq)
+    "Procurement Summary": None,  # informational-only; never priced (see generate_boq)
 }
 
 PRELIMINARIES_PCT_OF_CIVIL_SUBTOTAL = 8.0
@@ -78,6 +94,14 @@ def generate_boq(
     boq_items: List[BOQLineItem] = []
 
     for item in mto_items:
+        if item.informational:
+            # Procurement-reference-only line (e.g. the cement/sand/
+            # aggregate that make up a concrete pour) - its cost is
+            # already inside its parent item's composite rate, so pricing
+            # it again here would double-count. It still shows up in the
+            # MTO (Step 4) - that's the whole point of these lines.
+            continue
+
         wastage_pct = _wastage_for(item, wastage)
         qty_with_wastage = item.quantity * (1 + wastage_pct / 100.0)
 
