@@ -31,6 +31,74 @@ html, body, [class*="css"] {{
 }}
 
 /* ---------------------------------------------------------------- *
+ * Force the light palette EVEN IF Streamlit resolves to its own dark
+ * theme. A viewer can end up in dark mode two ways that have nothing to
+ * do with .streamlit/config.toml: their OWN browser/OS is in dark mode
+ * and they have Streamlit's Settings menu set to "Use system setting",
+ * or they've explicitly picked "Dark" there themselves - either one
+ * overrides config.toml on a PER-VIEWER basis. When that happens, any
+ * element that doesn't have an explicit color here falls back to
+ * Streamlit's own dark defaults (near-black backgrounds, near-white
+ * text) - which is exactly what produces the "background went dark and
+ * text disappeared" look. Overriding Streamlit's own CSS custom
+ * properties at the root - not just a handful of individual elements -
+ * is what makes every native widget resolve to OUR palette regardless of
+ * that per-viewer setting.
+ * ---------------------------------------------------------------- */
+:root, .stApp, [data-theme="dark"], [data-theme="light"] {{
+    --background-color: {config.BRAND_BG} !important;
+    --secondary-background-color: {config.BRAND_CARD} !important;
+    --text-color: {config.BRAND_TEXT} !important;
+    --primary-color: {config.BRAND_TEAL} !important;
+}}
+html, body, .stApp,
+[data-testid="stAppViewContainer"],
+[data-testid="stHeader"],
+[data-testid="stBottomBlockContainer"],
+[data-testid="stMain"] {{
+    background-color: {config.BRAND_BG} !important;
+}}
+/* Body text defaults to the dark slate ink everywhere, not Streamlit's
+   own dark-mode white - headings/sidebar/hero explicitly override this
+   below where a different color is wanted. */
+p, span, label, li, div, .stMarkdown, [data-testid="stMarkdownContainer"],
+[data-testid="stMetricLabel"], [data-testid="stMetricValue"], [data-testid="stCaptionContainer"] {{
+    color: {config.BRAND_TEXT};
+}}
+
+/* ---------------------------------------------------------------- *
+ * Inputs (text/number/select/textarea/file-uploader) and data tables -
+ * forced to a white "card" look with dark text so they never inherit a
+ * dark fallback (which is what made the yellow low-confidence rows and
+ * the AI-warning box in Step 3 unreadable - white-on-white or
+ * white-on-yellow text once the surrounding theme resolved to dark).
+ * ---------------------------------------------------------------- */
+[data-baseweb="input"], [data-baseweb="select"] > div, [data-baseweb="textarea"],
+[data-baseweb="base-input"],
+[data-testid="stFileUploaderDropzone"],
+[data-testid="stTextInput"] input, [data-testid="stNumberInput"] input {{
+    background-color: {config.BRAND_CARD} !important;
+    color: {config.BRAND_TEXT} !important;
+    border-radius: 8px !important;
+    border-color: rgba(11, 30, 61, 0.18) !important;
+}}
+[data-testid="stDataFrame"], [data-testid="stTable"] {{
+    background-color: {config.BRAND_CARD} !important;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(11, 30, 61, 0.05);
+}}
+/* Alert/notice boxes (st.info/st.warning/st.error/st.success) - force a
+   light card background with dark text for the same reason. */
+[data-testid="stAlert"] {{
+    background-color: {config.BRAND_CARD} !important;
+    border-radius: 10px;
+}}
+[data-testid="stAlert"] p, [data-testid="stAlert"] span, [data-testid="stAlert"] div {{
+    color: {config.BRAND_TEXT} !important;
+}}
+
+/* ---------------------------------------------------------------- *
  * Hero header banner (top of every step)
  * ---------------------------------------------------------------- */
 .cl-hero {{

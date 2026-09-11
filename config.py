@@ -33,6 +33,14 @@ BRAND_TEAL = "#0D9488"
 BRAND_TEAL_BRIGHT = "#2DD4BF"
 BRAND_GOLD = "#FBBF24"
 BRAND_BG = "#F4F7FB"
+BRAND_CARD = "#FFFFFF"
+# Body text color - a dark, readable slate used to explicitly force text
+# color everywhere (see ui/theme.py). Without an explicit color, an
+# element's text can inherit Streamlit's OWN dark-mode default (near-white)
+# even while its background stays forced to the light BRAND_BG/BRAND_CARD
+# above, producing invisible/low-contrast text - see the CSS root-variable
+# override note in ui/theme.py for the full explanation.
+BRAND_TEXT = "#1E293B"
 
 # Groq model IDs. Kept in one place so they're easy to bump as Groq
 # updates its free-tier vision-capable model lineup.
