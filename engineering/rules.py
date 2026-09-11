@@ -210,9 +210,9 @@ DPC_ASSUMED_GRADE = "M15"
 #     separately broken out in these sources).
 #   - Doors: economy flush/PVC door with basic frame (~PKR 8,000-12,000/
 #     door + hardware) vs mid-range semi-solid/veneer door (~PKR 25,000-
-#     30,000/door + frame, the rate book's "Standard") vs solid
-#     Deodar/Sheesham/Mahogany (~PKR 35,000-130,000+/door) - door prices
-#     vary hugely by wood species, so this spread is wide by nature.
+#     35,000/door + frame, the rate book's "Standard" at PKR 35,000) vs
+#     solid Deodar/Sheesham/Mahogany (~PKR 45,000-130,000+/door) - door
+#     prices vary hugely by wood species, so this spread is wide by nature.
 #   - Windows: economy fixed aluminium (~PKR 1,200-1,800/sqft) vs
 #     standard sliding/casement aluminium (~PKR 1,500-2,500+/sqft, the
 #     rate book's "Standard") vs thermal-break/UPVC premium glazing

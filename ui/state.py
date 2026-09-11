@@ -37,6 +37,11 @@ def init_session_state():
 
 
 def reset_project():
+    """Wipes everything tied to the CURRENT project - drawing/AI results
+    AND the project inputs/rate-book/wastage edits a user made in Steps
+    1/5 - so "Start New Project" actually starts from a clean slate rather
+    than silently carrying the previous project's name/client/grades/
+    custom rates into the next one."""
     keys_to_clear = [
         "uploaded_files",
         "uploaded_images",
@@ -54,6 +59,9 @@ def reset_project():
     for k in keys_to_clear:
         if k in st.session_state:
             del st.session_state[k]
+    st.session_state["project_inputs"] = ProjectInputs()
+    st.session_state["wastage_factors"] = WastageFactors()
+    st.session_state["rate_book"] = {r.item_code: r for r in load_default_rates()}
     st.session_state["step"] = 1
 
 

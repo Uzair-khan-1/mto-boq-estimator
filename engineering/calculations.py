@@ -639,7 +639,7 @@ def compute_formwork(
 # --------------------------------------------------------------------------
 
 
-def compute_masonry(walls: WallSpec, openings: OpeningsSpec, num_floors: float) -> List[QuantityLineItem]:
+def compute_masonry(walls: WallSpec, openings: OpeningsSpec, num_floors: float) -> tuple[List[QuantityLineItem], float]:
     items: List[QuantityLineItem] = []
 
     gross_wall_area = walls.total_length_per_floor_m.value * walls.height_m.value * num_floors

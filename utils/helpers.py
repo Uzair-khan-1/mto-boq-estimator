@@ -26,7 +26,7 @@ def round_up(value: float, digits: int = 2) -> float:
     return round(value + 1e-9, digits)
 
 
-def format_currency(value: float, symbol: str = "\u20b9") -> str:
+def format_currency(value: float, symbol: str = "PKR ") -> str:
     return f"{symbol}{value:,.2f}"
 
 

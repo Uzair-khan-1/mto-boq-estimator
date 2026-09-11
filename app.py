@@ -65,6 +65,20 @@ if hasattr(st, "logo"):
 
 STEP_LABELS = ["1. Project Setup", "2. AI Analysis", "3. Verify Data", "4. MTO", "5. BOQ & Export"]
 
+
+def _grade_select_index(options: dict, stored_value: str, default_index: int) -> int:
+    """Finds `stored_value`'s position in options[grade_unit_key] so a grade
+    selectbox re-shows the project's actual saved grade instead of silently
+    snapping back to the hardcoded default every time Step 1 is revisited
+    (e.g. via "← Back to Step 1" after already submitting once). Checks
+    BOTH the "SI" and "FPS" lists (they're index-aligned - see
+    engineering/rules.py) since `stored_value` may have been saved while
+    the OTHER unit system was selected."""
+    for lst in (options.get("SI", []), options.get("FPS", [])):
+        if stored_value in lst:
+            return lst.index(stored_value)
+    return default_index
+
 # ---------------------------------------------------------------------------
 # Sidebar
 # ---------------------------------------------------------------------------
@@ -87,7 +101,7 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.markdown(f'<span class="cl-disclaimer">\u26a0\ufe0f {config.DISCLAIMER_TEXT_SHORT}</span>', unsafe_allow_html=True)
+    st.caption(f"\u26a0\ufe0f {config.DISCLAIMER_TEXT_SHORT}")
 
 theme.render_hero()
 
@@ -150,30 +164,33 @@ def step_1():
         )
     with c2:
         grade_unit_key = units.FPS if unit_system == units.FPS else units.SI
+        wall_material_options = list(rules.MASONRY_UNIT_SIZES_M.keys())
+        wall_thickness_options = [100, 115, 150, 200, 230]
         concrete_grade = st.selectbox(
             "Concrete Grade (structural members)",
             rules.CONCRETE_GRADE_OPTIONS[grade_unit_key],
-            index=rules.CONCRETE_GRADE_DEFAULT_INDEX,
+            index=_grade_select_index(rules.CONCRETE_GRADE_OPTIONS, pi.concrete_grade_footing, rules.CONCRETE_GRADE_DEFAULT_INDEX),
         )
         pcc_grade = st.selectbox(
             "PCC Grade",
             rules.PCC_GRADE_OPTIONS[grade_unit_key],
-            index=rules.PCC_GRADE_DEFAULT_INDEX,
+            index=_grade_select_index(rules.PCC_GRADE_OPTIONS, pi.pcc_grade, rules.PCC_GRADE_DEFAULT_INDEX),
         )
         steel_grade = st.selectbox(
             "Steel Grade",
             rules.STEEL_GRADE_OPTIONS[grade_unit_key],
-            index=rules.STEEL_GRADE_DEFAULT_INDEX,
+            index=_grade_select_index(rules.STEEL_GRADE_OPTIONS, pi.steel_grade, rules.STEEL_GRADE_DEFAULT_INDEX),
         )
         wall_material = st.selectbox(
             "Wall Material",
-            list(rules.MASONRY_UNIT_SIZES_M.keys()),
+            wall_material_options,
+            index=wall_material_options.index(pi.wall_material) if pi.wall_material in wall_material_options else 0,
             format_func=lambda v: units.relabel_wall_material(v, unit_system),
         )
         wall_thickness_mm = st.selectbox(
             "Wall Thickness",
-            [100, 115, 150, 200, 230],
-            index=4,
+            wall_thickness_options,
+            index=wall_thickness_options.index(pi.wall_thickness_mm) if pi.wall_thickness_mm in wall_thickness_options else 4,
             format_func=lambda mm: f'{mm / 25.4:.1f}" ({mm} mm)' if unit_system == units.FPS else f"{mm} mm",
         )
 
@@ -292,7 +309,10 @@ def step_2():
             go_to_step(1)
             st.rerun()
         if st.button("Skip AI \u2014 enter parameters manually", type="primary"):
-            st.session_state["extracted_params"] = default_building_params()
+            st.session_state["extracted_params"] = default_building_params(
+                wall_thickness_mm=st.session_state["project_inputs"].wall_thickness_mm,
+                wall_material=st.session_state["project_inputs"].wall_material,
+            )
             st.session_state["used_ai"] = False
             go_to_step(3)
             st.rerun()
@@ -332,6 +352,20 @@ def step_2():
         "Additional context for the AI (optional)",
         placeholder="e.g. 'This is a G+1 house, footings are isolated RCC pad footings, drawing is not to exact scale...'",
     )
+    # Wall material/thickness are rarely labelled on a simple line drawing,
+    # so the model has little to go on beyond a visual guess. Pass along
+    # what was already chosen in Step 1 as a prior it can use UNLESS the
+    # drawing clearly shows something else (see ai/prompts.py rule 1-3) -
+    # this also keeps it from drifting from Step 1's selection for no
+    # reason, which previously could leave the exported BOQ describing a
+    # different wall material than the one shown in the project info table.
+    _pi = st.session_state["project_inputs"]
+    _wall_hint = (
+        f"Unless the drawing clearly shows otherwise, assume wall material "
+        f"'{_pi.wall_material}' and wall thickness {_pi.wall_thickness_mm}mm "
+        "(both chosen in Step 1)."
+    )
+    project_context_for_ai = "\n".join(p for p in [project_context, _wall_hint] if p)
 
     c1, c2 = st.columns(2)
     with c1:
@@ -340,7 +374,10 @@ def step_2():
         skip_clicked = st.button("Skip AI \u2014 use standard defaults", use_container_width=True)
 
     if skip_clicked:
-        st.session_state["extracted_params"] = default_building_params()
+        st.session_state["extracted_params"] = default_building_params(
+            wall_thickness_mm=st.session_state["project_inputs"].wall_thickness_mm,
+            wall_material=st.session_state["project_inputs"].wall_material,
+        )
         st.session_state["used_ai"] = False
         go_to_step(3)
         st.rerun()
@@ -353,9 +390,11 @@ def step_2():
                 params, raw_text, errors = extract_building_params(
                     api_key=st.session_state["groq_api_key"],
                     images=images,
-                    project_context=project_context,
+                    project_context=project_context_for_ai,
                     ocr_hint=st.session_state.get("ocr_hint_text", ""),
                     image_labels=labels,
+                    wall_thickness_mm=st.session_state["project_inputs"].wall_thickness_mm,
+                    wall_material=st.session_state["project_inputs"].wall_material,
                 )
             st.session_state["extracted_params"] = params
             st.session_state["raw_ai_response"] = raw_text
@@ -639,7 +678,7 @@ def step_5():
                 use_container_width=True,
             )
 
-        st.markdown(f'<span class="cl-disclaimer">\u26a0\ufe0f {config.DISCLAIMER_TEXT_SHORT}</span>', unsafe_allow_html=True)
+        st.caption(f"\u26a0\ufe0f {config.DISCLAIMER_TEXT_SHORT}")
 
     if st.button("\u2190 Back to Step 4 (MTO)"):
         go_to_step(4)

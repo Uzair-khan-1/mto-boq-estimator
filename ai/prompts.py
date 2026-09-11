@@ -86,7 +86,7 @@ Rules you MUST follow:
    NEVER leave a field blank or null - always provide your best numeric
    estimate with an honest confidence code.
 4. Typical residential defaults you may fall back on when information is
-   missing (India-typical small RCC residential building):
+   missing (typical small RCC residential building, Pakistani/South Asian practice):
    - Isolated footing: 1.2m x 1.2m x 0.9m, count = number of column
      intersections you can identify (or estimate from plan perimeter/area)
    - Column: 230mm x 450mm, height per floor 3.0m

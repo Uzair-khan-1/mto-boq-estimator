@@ -162,9 +162,15 @@ def _write_boq_sheet(wb: Workbook, boq_items: List[BOQLineItem], currency_symbol
         for c in range(1, len(headers) + 1):
             ws.cell(row=row, column=c).border = THIN_BORDER
 
-    total_row = ws.max_row + 2
+    last_data_row = ws.max_row  # captured BEFORE writing the TOTAL row below,
+    # since openpyxl recalculates ws.max_row the instant a new cell is
+    # written - relying on it *after* that write (as a prior version of
+    # this code did) is fragile: it happens to still land on the right
+    # row today only because of an incidental blank spacer row, but breaks
+    # the moment that spacing changes. Capturing it first is unambiguous.
+    total_row = last_data_row + 2
     ws.cell(row=total_row, column=8, value="TOTAL").font = Font(bold=True)
-    ws.cell(row=total_row, column=9, value=f"=SUM(I3:I{ws.max_row - 1})").font = Font(bold=True)
+    ws.cell(row=total_row, column=9, value=f"=SUM(I3:I{last_data_row})").font = Font(bold=True)
 
     _autofit(ws, [14, 14, 40, 8, 12, 10, 16, 12, 14, 12, 40])
     ws.freeze_panes = "A3"

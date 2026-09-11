@@ -109,11 +109,26 @@ def _map_json_to_params(raw: dict) -> ExtractedBuildingParams:
     )
 
 
-def default_building_params() -> ExtractedBuildingParams:
+def default_building_params(
+    wall_thickness_mm: float = 230.0,
+    wall_material: str = "Burnt clay brick (modular 190x90x90mm)",
+) -> ExtractedBuildingParams:
     """Fully-defaulted fallback used when AI extraction is unavailable or
     fails, and as the starting point for the 'skip AI, enter manually'
     path. All values are standard small-residential defaults, all Low
     confidence, so the UI visibly nudges the user to review every field.
+
+    `wall_thickness_mm`/`wall_material` seed the wall estimate from the
+    Step 1 "Wall Thickness"/"Wall Material" selectors: with no drawing to
+    read the real wall construction off of, the user's own explicit Step 1
+    choice is the best information available. Without this, these fields
+    silently defaulted to a fixed 230mm burnt-clay-brick wall regardless of
+    what was picked in Step 1 - and since the masonry unit-count/mortar
+    calculation in engineering/calculations.py keys off THIS wall_material
+    (not project_inputs.wall_material, which is display-only in the
+    exports), that mismatch could make the exported BOQ describe and price
+    a completely different wall material than the one shown in the
+    project's own cover/info table.
     """
     def est(v: float, note: str = "Standard default - please verify") -> Estimate:
         return Estimate(value=v, confidence=ConfidenceLevel.LOW, source=Source.DEFAULT_ASSUMPTION, note=note)
@@ -144,8 +159,8 @@ def default_building_params() -> ExtractedBuildingParams:
         walls=WallSpec(
             total_length_per_floor_m=est(45.0, "Default: perimeter + a few partitions for ~100 sqm plan"),
             height_m=est(3.0),
-            thickness_m=est(0.23),
-            wall_material="Burnt clay brick (modular 190x90x90mm)",
+            thickness_m=est(wall_thickness_mm / 1000.0, "From Step 1 'Wall Thickness' selection"),
+            wall_material=wall_material,
         ),
         openings=OpeningsSpec(
             door_count_per_floor=est(4),
@@ -164,6 +179,8 @@ def extract_building_params(
     project_context: str = "",
     ocr_hint: str = "",
     image_labels: List[str] | None = None,
+    wall_thickness_mm: float = 230.0,
+    wall_material: str = "Burnt clay brick (modular 190x90x90mm)",
 ) -> Tuple[ExtractedBuildingParams, str, List[str]]:
     """Returns (params, raw_model_output_text, error_messages).
 
@@ -188,7 +205,7 @@ def extract_building_params(
         )
     except GroqClientError as exc:
         logger.warning("Groq call failed, using defaults: %s", exc)
-        return default_building_params(), "", [str(exc)]
+        return default_building_params(wall_thickness_mm, wall_material), "", [str(exc)]
 
     try:
         raw_json = json.loads(raw_text)
@@ -201,4 +218,4 @@ def extract_building_params(
             f"({type(exc).__name__}: {exc}). Falling back to standard defaults - "
             "please review and edit every field below."
         )
-        return default_building_params(), raw_text, errors
+        return default_building_params(wall_thickness_mm, wall_material), raw_text, errors
