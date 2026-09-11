@@ -1,4 +1,4 @@
-# AI Residential MTO/BOQ Estimator (MVP)
+# CostLens — *From plans to price.* (MVP)
 
 An AI-assisted, engineer-controlled tool that turns one or more simple
 residential RCC drawings (PDF/PNG/JPG - e.g. separate Plan, Elevation, and
@@ -12,6 +12,28 @@ Excel and PDF.
 > prepared from approved drawings, or a certified quantity surveyor's
 > estimate. Always get professional verification before using these
 > numbers for tendering, construction, or financial decisions.
+
+---
+
+## 0. Branding
+
+The app is styled as **CostLens** (tagline: *"From plans to price."*). All
+visual polish is done within plain Streamlit's platform limits - no custom
+JS framework, no React components:
+
+- **Native theme** (`.streamlit/config.toml`) sets the base color palette
+  (navy text, teal accent, light background) using Streamlit's own
+  `[theme]` keys, so it applies before a single line of the app runs.
+- **CSS injection** (`ui/theme.py`, `inject_theme()`) layers the "Outfit"
+  Google Font, a gradient hero banner, styled buttons/metric-cards/
+  expanders, and a branded sidebar - all via `st.markdown(unsafe_allow_html=True)`
+  targeting stable `data-testid` selectors, so it degrades gracefully
+  instead of breaking if a future Streamlit version renames a CSS class.
+- **`st.logo()`** (guarded with `hasattr(st, "logo")` for older Streamlit
+  versions) shows the horizontal logo lockup in the sidebar header.
+- **Logo assets** (`assets/costlens_icon.png`, `assets/costlens_logo.png`)
+  are generated entirely with Pillow - see `assets/generate_logo.py` if you
+  ever want to tweak the mark or regenerate it at a different size.
 
 ---
 
@@ -109,10 +131,15 @@ assumption notes**, visible in an expandable "Calculation Breakdown" panel.
 ```
 mto_boq_estimator/
 ├── app.py                      # Streamlit entrypoint / page router
-├── config.py                   # App-wide constants & settings
+├── config.py                   # App-wide constants & settings (incl. brand palette)
 ├── requirements.txt
 ├── .streamlit/
-│   └── config.toml             # Theme + upload size
+│   └── config.toml             # Native Streamlit theme (colors, base font)
+├── assets/
+│   ├── generate_logo.py        # Regenerates the CostLens logo PNGs (Pillow-only)
+│   ├── costlens_icon.png       # Square mark (favicon / st.logo icon_image)
+│   ├── costlens_logo.png       # Horizontal lockup (icon + wordmark + tagline)
+│   └── fonts/                  # Outfit (OFL-licensed) - bundled for the logo generator
 ├── models/
 │   └── schemas.py              # Pydantic models (single source of truth)
 ├── ai/
@@ -135,7 +162,8 @@ mto_boq_estimator/
 │   └── pdf_export.py           # ReportLab PDF report builder
 ├── ui/
 │   ├── state.py                # Streamlit session-state helpers
-│   └── components.py           # Reusable UI widgets (editable tables etc.)
+│   ├── components.py           # Reusable UI widgets (editable tables etc.)
+│   └── theme.py                # CostLens CSS injection + hero/step-tracker helpers
 ├── utils/
 │   ├── helpers.py              # Small shared utilities
 │   └── units.py                # SI <-> FPS display/input conversion layer

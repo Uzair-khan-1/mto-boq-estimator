@@ -9,9 +9,27 @@ Reads secrets in this order of priority:
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
-APP_NAME = "AI Residential MTO/BOQ Estimator"
-APP_VERSION = "0.2.0-mvp"
+APP_NAME = "CostLens"
+APP_TAGLINE = "From plans to price."
+APP_FULL_NAME = "CostLens - AI Residential MTO/BOQ Estimator"
+APP_VERSION = "0.3.0-mvp"
+
+# Brand assets (see assets/generate_logo.py to regenerate/tweak).
+ASSETS_DIR = Path(__file__).resolve().parent / "assets"
+LOGO_ICON_PATH = ASSETS_DIR / "costlens_icon.png"
+LOGO_HORIZONTAL_PATH = ASSETS_DIR / "costlens_logo.png"
+
+# Brand palette - also mirrored in .streamlit/config.toml and the CSS
+# injected by ui.theme, kept here as the single source of truth for any
+# Python code that needs a hex value (e.g. chart colors).
+BRAND_NAVY = "#0B1E3D"
+BRAND_NAVY_LIGHT = "#123A5A"
+BRAND_TEAL = "#0D9488"
+BRAND_TEAL_BRIGHT = "#2DD4BF"
+BRAND_GOLD = "#FBBF24"
+BRAND_BG = "#F4F7FB"
 
 # Groq model IDs. Kept in one place so they're easy to bump as Groq
 # updates its free-tier vision-capable model lineup.

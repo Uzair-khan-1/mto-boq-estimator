@@ -30,10 +30,19 @@ from mto_boq.boq_generator import boq_to_dataframe, cost_by_category, generate_b
 from mto_boq.mto_generator import compute_reinforcement_summary, generate_mto, group_by_category, mto_to_dataframe
 from ui.components import confidence_badge, render_estimate_input, render_rate_editor, render_wastage_editor
 from ui.state import go_to_step, init_session_state, reset_project
+from ui import theme
 from utils import units
 
-st.set_page_config(page_title=config.APP_NAME, page_icon="\U0001f3d7\ufe0f", layout="wide")
+_page_icon = str(config.LOGO_ICON_PATH) if config.LOGO_ICON_PATH.exists() else "\U0001f3d7\ufe0f"
+st.set_page_config(page_title=f"{config.APP_NAME} \u00b7 {config.APP_TAGLINE}", page_icon=_page_icon, layout="wide")
 init_session_state()
+theme.inject_theme()
+
+if hasattr(st, "logo"):
+    try:
+        st.logo(str(config.LOGO_HORIZONTAL_PATH), icon_image=str(config.LOGO_ICON_PATH))
+    except Exception:
+        pass
 
 STEP_LABELS = ["1. Project Setup", "2. AI Analysis", "3. Verify Data", "4. MTO", "5. BOQ & Export"]
 
@@ -41,16 +50,17 @@ STEP_LABELS = ["1. Project Setup", "2. AI Analysis", "3. Verify Data", "4. MTO",
 # Sidebar
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.title(config.APP_NAME)
+    if not hasattr(st, "logo"):
+        # Older Streamlit without st.logo() support - fall back to a plain
+        # text brand header so the name/tagline still show up somewhere.
+        st.title(config.APP_NAME)
     st.caption(f"v{config.APP_VERSION} \u00b7 MVP")
 
     st.session_state["groq_api_key"] = config.get_secret("GROQ_API_KEY", "")
 
     st.markdown("---")
     st.markdown("### Progress")
-    for i, label in enumerate(STEP_LABELS, start=1):
-        marker = "\u2705" if st.session_state["step"] > i else ("\u27a1\ufe0f" if st.session_state["step"] == i else "\u2b1c")
-        st.markdown(f"{marker} {label}")
+    theme.render_sidebar_steps(STEP_LABELS, st.session_state["step"])
 
     st.markdown("---")
     if st.button("\U0001f504 Start New Project", use_container_width=True):
@@ -59,6 +69,8 @@ with st.sidebar:
 
     st.markdown("---")
     st.caption(f"\u26a0\ufe0f {config.DISCLAIMER_TEXT_SHORT}")
+
+theme.render_hero()
 
 
 # ---------------------------------------------------------------------------
