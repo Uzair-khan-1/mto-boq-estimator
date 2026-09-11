@@ -136,10 +136,40 @@ def step_1():
 
         contingency_pct = st.slider("Contingency % (on total cost)", 0.0, 20.0, pi.contingency_pct, 0.5)
 
-        st.markdown("##### Drawing Upload")
-        uploaded = st.file_uploader("Upload drawing (PDF, PNG, or JPG)", type=config.SUPPORTED_FILE_TYPES)
-
         submitted = st.form_submit_button("Continue to AI Analysis \u2192", use_container_width=True, type="primary")
+
+    # Upload lives OUTSIDE the form so each file's view-type tag renders
+    # immediately (a form only reruns the script on submit, which would
+    # make per-file tagging appear a step late).
+    st.markdown("##### Drawing Upload")
+    st.caption(
+        f"Upload up to {config.MAX_DRAWING_FILES} files - e.g. separate Plan, Elevation, and Section drawings. "
+        "A Section view especially helps: it's the only view that shows floor height, footing depth, and slab "
+        f"thickness. Up to {config.MAX_TOTAL_IMAGES} total pages/images are sent to the AI per analysis, to stay "
+        "within free-tier limits."
+    )
+    raw_uploads = st.file_uploader(
+        "Upload drawing(s) (PDF, PNG, or JPG)",
+        type=config.SUPPORTED_FILE_TYPES,
+        accept_multiple_files=True,
+        key="drawing_uploader",
+    )
+
+    uploaded_files_with_tags = []
+    if raw_uploads:
+        if len(raw_uploads) > config.MAX_DRAWING_FILES:
+            st.warning(f"Only the first {config.MAX_DRAWING_FILES} files will be used - remove some to change which ones.")
+        for i, f in enumerate(raw_uploads[: config.MAX_DRAWING_FILES]):
+            fc1, fc2 = st.columns([3, 2])
+            fc1.caption(f"\U0001f4c4 {f.name}")
+            view_tag = fc2.selectbox(
+                "View type",
+                config.DRAWING_VIEW_TYPES,
+                index=min(i, len(config.DRAWING_VIEW_TYPES) - 1),
+                key=f"view_tag_{i}",
+                label_visibility="collapsed",
+            )
+            uploaded_files_with_tags.append({"name": f.name, "bytes": f.getvalue(), "view_tag": view_tag})
 
     if submitted:
         st.session_state["project_inputs"] = ProjectInputs(
@@ -164,9 +194,7 @@ def step_1():
             contingency_pct=contingency_pct,
             unit_system=unit_system,
         )
-        if uploaded is not None:
-            st.session_state["uploaded_file_bytes"] = uploaded.getvalue()
-            st.session_state["uploaded_file_name"] = uploaded.name
+        st.session_state["uploaded_files"] = uploaded_files_with_tags
         go_to_step(2)
         st.rerun()
 
@@ -174,25 +202,43 @@ def step_1():
 # ---------------------------------------------------------------------------
 # STEP 2 — AI analysis
 # ---------------------------------------------------------------------------
-def _load_images_from_upload() -> list[Image.Image]:
-    file_bytes = st.session_state.get("uploaded_file_bytes")
-    file_name = st.session_state.get("uploaded_file_name") or ""
-    if not file_bytes:
-        return []
-
+def _load_images_from_upload() -> tuple[list[Image.Image], list[str]]:
+    """Turns the tagged file list from Step 1 into a flat list of cleaned
+    images plus a parallel list of view labels (one per image - every page
+    of a multi-page PDF inherits that file's tag). Caps pages-per-file and
+    the total image count (config.MAX_PAGES_PER_FILE / MAX_TOTAL_IMAGES) so
+    a multi-file upload can't blow up the AI request size unbounded.
+    """
+    uploaded_files = st.session_state.get("uploaded_files") or []
     images: list[Image.Image] = []
-    if file_name.lower().endswith(".pdf"):
-        result = process_pdf(file_bytes, dpi=200, max_pages=3)
-        images = [p.image for p in result.pages]
-    else:
-        images = [Image.open(BytesIO(file_bytes))]
-    return [clean_drawing_image(img) for img in images]
+    labels: list[str] = []
+
+    for f in uploaded_files:
+        if len(images) >= config.MAX_TOTAL_IMAGES:
+            break
+        name, file_bytes, view_tag = f["name"], f["bytes"], f["view_tag"]
+
+        if name.lower().endswith(".pdf"):
+            max_pages = min(config.MAX_PAGES_PER_FILE, config.MAX_TOTAL_IMAGES - len(images))
+            result = process_pdf(file_bytes, dpi=200, max_pages=max_pages)
+            file_images = [p.image for p in result.pages]
+        else:
+            file_images = [Image.open(BytesIO(file_bytes))]
+
+        for img in file_images:
+            if len(images) >= config.MAX_TOTAL_IMAGES:
+                break
+            images.append(clean_drawing_image(img))
+            labels.append(f"{view_tag} ({name})")
+
+    return images, labels
 
 
 def step_2():
     st.header("Step 2 \u00b7 AI Drawing Analysis")
 
-    if not st.session_state.get("uploaded_file_bytes"):
+    uploaded_files = st.session_state.get("uploaded_files") or []
+    if not uploaded_files:
         st.info("No drawing was uploaded. You can go back to upload one, or skip straight to manual entry with standard defaults.")
         if st.button("\u2190 Back to Step 1"):
             go_to_step(1)
@@ -205,16 +251,22 @@ def step_2():
         return
 
     if "uploaded_images" not in st.session_state or not st.session_state["uploaded_images"]:
-        with st.spinner("Processing uploaded drawing..."):
-            st.session_state["uploaded_images"] = _load_images_from_upload()
+        with st.spinner("Processing uploaded drawing(s)..."):
+            images, labels = _load_images_from_upload()
+            st.session_state["uploaded_images"] = images
+            st.session_state["uploaded_image_labels"] = labels
 
     images = st.session_state["uploaded_images"]
-    st.write(f"**{len(images)} page/image(s)** processed from `{st.session_state['uploaded_file_name']}`")
+    labels = st.session_state.get("uploaded_image_labels") or []
+    file_names = ", ".join(f["name"] for f in uploaded_files)
+    st.write(f"**{len(images)} page/image(s)** processed from {len(uploaded_files)} file(s): `{file_names}`")
+    if len(images) >= config.MAX_TOTAL_IMAGES:
+        st.caption(f"Capped at {config.MAX_TOTAL_IMAGES} total images to stay within free-tier limits - some pages/files may have been left out.")
 
     cols = st.columns(min(len(images), 4) or 1)
     for i, img in enumerate(images):
         with cols[i % len(cols)]:
-            st.image(img, caption=f"Page {i+1}", use_container_width=True)
+            st.image(img, caption=labels[i] if i < len(labels) else f"Page {i+1}", use_container_width=True)
             if not estimate_is_drawing_like(img):
                 st.caption("\u26a0\ufe0f This doesn't look like a typical line drawing \u2014 results may be unreliable.")
 
@@ -255,6 +307,7 @@ def step_2():
                     images=images,
                     project_context=project_context,
                     ocr_hint=st.session_state.get("ocr_hint_text", ""),
+                    image_labels=labels,
                 )
             st.session_state["extracted_params"] = params
             st.session_state["raw_ai_response"] = raw_text

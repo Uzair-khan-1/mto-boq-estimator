@@ -97,14 +97,28 @@ Rules you MUST follow:
      window ~1.2m x 1.2m
 5. Always populate "extraction_warnings" with anything you had to default or
    could not confidently read - but keep each entry very short.
-6. If multiple pages/views are given, cross-reference them.
+6. If multiple pages/views are given, cross-reference them. A Plan view only
+   shows horizontal layout (counts, lengths, areas) - it CANNOT show vertical
+   dimensions. A Section view is your best source for floor-to-floor height,
+   footing depth, slab thickness, and wall height; an Elevation view is a
+   good cross-check for number of floors and overall height. If the images
+   are labelled below (e.g. "Image 1 = Plan"), use that to know which kind
+   of dimension to expect from which image, and prefer the more direct
+   source for each field (e.g. slab thickness from a Section, not guessed
+   from a Plan).
 7. Output ONLY the compact JSON object described. No prose before or after it.
 """
 
 
-def build_user_prompt(project_context: str, ocr_hint: str) -> str:
+def build_user_prompt(project_context: str, ocr_hint: str, image_labels: list[str] | None = None) -> str:
+    label_line = ""
+    if image_labels:
+        tagged = ", ".join(f"Image {i} = {label}" for i, label in enumerate(image_labels, start=1))
+        label_line = f"\nThe attached images are, in order: {tagged}."
+
     parts = [
         "Analyze the attached residential building drawing image(s).",
+        label_line,
         f"\nProject context provided by the user:\n{project_context}" if project_context else "",
         f"\n{ocr_hint}" if ocr_hint else "",
         f"\n{RESPONSE_JSON_SCHEMA_DESCRIPTION}",

@@ -1,9 +1,10 @@
 # AI Residential MTO/BOQ Estimator (MVP)
 
-An AI-assisted, engineer-controlled tool that turns a simple residential RCC
-drawing (PDF/PNG/JPG) plus a few project inputs into a **preliminary**
-Material Take-Off (MTO), Bill of Quantities (BOQ), and cost estimate —
-exportable to Excel and PDF.
+An AI-assisted, engineer-controlled tool that turns one or more simple
+residential RCC drawings (PDF/PNG/JPG - e.g. separate Plan, Elevation, and
+Section files) plus a few project inputs into a **preliminary** Material
+Take-Off (MTO), Bill of Quantities (BOQ), and cost estimate — exportable to
+Excel and PDF.
 
 > ⚠️ **Disclaimer**: This tool produces **preliminary, indicative**
 > quantities and costs for early-stage budgeting only. It is **not** a
@@ -176,6 +177,26 @@ allowances (see the `note` field in that file for the full breakdown). As
 with everything else in this app, these are **indicative defaults only** -
 always override them with your own current, local quotations before
 relying on the cost estimate.
+
+---
+
+## 3b. Multi-file drawing upload (Plan / Elevation / Section)
+
+Step 1 accepts up to `config.MAX_DRAWING_FILES` (default 3) separate
+drawing files, each taggable as Plan / Elevation / Section / Other. This
+matters because a Plan view is a horizontal slice - it cannot show vertical
+dimensions at all. Adding a Section lets the AI actually read floor-to-floor
+height, footing depth, and slab thickness instead of guessing defaults for
+them; an Elevation is a good cross-check for floor count and overall height.
+The tag you pick is passed straight into the AI prompt ("Image 1 = Plan,
+Image 2 = Section, ...") so the model knows which kind of dimension to
+expect from which image.
+
+To keep any one analysis call within free-tier Groq limits, pages/images
+are capped at `config.MAX_PAGES_PER_FILE` (default 2) per file and
+`config.MAX_TOTAL_IMAGES` (default 6) in total across every uploaded file -
+extra pages/files beyond the caps are silently dropped with an on-screen
+notice, never a crash.
 
 ---
 

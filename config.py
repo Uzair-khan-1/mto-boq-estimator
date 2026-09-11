@@ -47,6 +47,20 @@ RATE_BOOK_NOTE = (
 # Supported upload types
 SUPPORTED_FILE_TYPES = ["pdf", "png", "jpg", "jpeg"]
 
+# --------------------------------------------------------------------------
+# Multi-file drawing upload (Plan / Elevation / Section, etc.)
+# --------------------------------------------------------------------------
+# The AI call already supports sending several images in one request (that's
+# how a multi-page PDF works today) - these limits exist purely to keep a
+# multi-FILE upload (e.g. separate Plan + Elevation + Section PDFs) from
+# growing the per-request image count (and therefore token usage) without
+# bound, so a free/low-tier Groq API key doesn't get rate-limited.
+MAX_DRAWING_FILES = 3          # e.g. one each for Plan, Elevation, Section
+MAX_PAGES_PER_FILE = 2         # pages read from any single multi-page PDF
+MAX_TOTAL_IMAGES = 6           # hard cap across ALL files combined
+
+DRAWING_VIEW_TYPES = ["Plan", "Elevation", "Section", "Other / not sure"]
+
 # Confidence levels used throughout the app (AI extraction + calculations)
 CONFIDENCE_LEVELS = ["High", "Medium", "Low"]
 

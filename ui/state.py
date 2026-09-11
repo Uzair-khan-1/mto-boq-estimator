@@ -16,9 +16,9 @@ def init_session_state():
     defaults = {
         "step": 1,
         "groq_api_key": "",
-        "uploaded_file_bytes": None,
-        "uploaded_file_name": None,
+        "uploaded_files": [],  # list of {"name": str, "bytes": bytes, "view_tag": str}
         "uploaded_images": [],
+        "uploaded_image_labels": [],
         "ocr_hint_text": "",
         "project_inputs": ProjectInputs(),
         "extracted_params": None,
@@ -38,9 +38,9 @@ def init_session_state():
 
 def reset_project():
     keys_to_clear = [
-        "uploaded_file_bytes",
-        "uploaded_file_name",
+        "uploaded_files",
         "uploaded_images",
+        "uploaded_image_labels",
         "ocr_hint_text",
         "extracted_params",
         "raw_ai_response",
@@ -49,6 +49,7 @@ def reset_project():
         "boq_items",
         "cost_summary",
         "used_ai",
+        "drawing_uploader",  # clears the file_uploader widget itself
     ]
     for k in keys_to_clear:
         if k in st.session_state:

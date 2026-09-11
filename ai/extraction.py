@@ -163,15 +163,21 @@ def extract_building_params(
     images: List[Image.Image],
     project_context: str = "",
     ocr_hint: str = "",
+    image_labels: List[str] | None = None,
 ) -> Tuple[ExtractedBuildingParams, str, List[str]]:
     """Returns (params, raw_model_output_text, error_messages).
+
+    `image_labels`, if given, must be the same length/order as `images`
+    (e.g. ["Plan", "Section", "Elevation"]) - it's threaded into the
+    prompt so the model knows which view to read each kind of dimension
+    from (see ai/prompts.py rule 6).
 
     error_messages is empty on success. On any failure, params falls back
     to `default_building_params()` and error_messages explains why, so the
     UI can show a clear (non-crashing) warning banner.
     """
     errors: List[str] = []
-    user_prompt = build_user_prompt(project_context, ocr_hint)
+    user_prompt = build_user_prompt(project_context, ocr_hint, image_labels)
 
     try:
         raw_text = call_vision_model(
