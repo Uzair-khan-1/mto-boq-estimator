@@ -15,6 +15,7 @@ import pandas as pd
 
 from engineering.calculations import generate_all_quantities, steel_sanity_check
 from models.schemas import ExtractedBuildingParams, ProjectInputs, QuantityLineItem
+from utils import units
 
 
 def generate_mto(params: ExtractedBuildingParams, project_inputs: ProjectInputs) -> List[QuantityLineItem]:
@@ -28,19 +29,24 @@ def group_by_category(items: List[QuantityLineItem]) -> Dict[str, List[QuantityL
     return grouped
 
 
-def mto_to_dataframe(items: List[QuantityLineItem]) -> pd.DataFrame:
-    rows = [
-        {
-            "Item Code": i.item_code,
-            "Category": i.category,
-            "Description": i.description,
-            "Unit": i.unit,
-            "Quantity": i.quantity,
-            "Confidence": i.confidence.value,
-            "Formula": i.formula,
-        }
-        for i in items
-    ]
+def mto_to_dataframe(items: List[QuantityLineItem], unit_system: str = units.SI) -> pd.DataFrame:
+    """`unit_system` only affects the displayed Quantity/Unit columns - the
+    underlying QuantityLineItem.quantity always stays in SI (see
+    utils/units.py); this keeps every calculation upstream untouched."""
+    rows = []
+    for i in items:
+        qty, unit = units.quantity_and_unit_for_display(i.quantity, i.unit, unit_system)
+        rows.append(
+            {
+                "Item Code": i.item_code,
+                "Category": i.category,
+                "Description": i.description,
+                "Unit": unit,
+                "Quantity": round(qty, 3),
+                "Confidence": i.confidence.value,
+                "Formula": i.formula,
+            }
+        )
     return pd.DataFrame(rows)
 
 

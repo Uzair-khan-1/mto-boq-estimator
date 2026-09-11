@@ -136,12 +136,46 @@ mto_boq_estimator/
 │   ├── state.py                # Streamlit session-state helpers
 │   └── components.py           # Reusable UI widgets (editable tables etc.)
 ├── utils/
-│   └── helpers.py              # Small shared utilities
+│   ├── helpers.py              # Small shared utilities
+│   └── units.py                # SI <-> FPS display/input conversion layer
 ├── data/
-│   ├── material_rates.json     # Default rate book (INR, editable in-app)
+│   ├── material_rates.json     # Default rate book (PKR, editable in-app)
 │   └── default_assumptions.json# Default engineering assumptions
 └── sample_data/                # (optional) sample drawing for demo
 ```
+
+---
+
+## 3a. Units & currency
+
+The app always **calculates internally in SI/metric units** (m, m², m³, kg) -
+that never changes. What the user sees is controlled by a per-project
+**Unit System** toggle in Step 1:
+
+- **SI (Metric)** - dimensions entered/shown in metres, m², m³.
+- **FPS (Feet-Inch, Pakistani practice)** - dimensions entered/shown in feet
+  (lengths/heights), inches (slab/wall thickness, column & beam
+  cross-sections - matching how these are conventionally quoted on-site),
+  square feet (areas) and cubic feet (concrete/excavation quantities in the
+  MTO/BOQ). Steel is always quoted/priced in **kg** in either system, since
+  that's how it's bought in Pakistan regardless of which system the rest of
+  the job is measured in.
+
+Switching the toggle never changes a single underlying number or the final
+cost - it only changes how values are displayed and entered. The rate-book
+editor (Step 5) shows/accepts rates per cft or sqft when FPS is selected,
+but stores them internally per m³/m² so the BOQ math is identical either
+way (see `utils/units.py` for the conversion functions and the invariant
+this relies on: `display_quantity × display_rate == amount`, always).
+
+The default rate book (`data/material_rates.json`) is priced in **PKR**,
+built from published September-2026 Pakistani market prices for cement,
+Grade-60 steel, sand, crush/bajri, bricks, plaster and paint, combined with
+standard nominal-mix/dry-volume-factor quantities and typical site labour
+allowances (see the `note` field in that file for the full breakdown). As
+with everything else in this app, these are **indicative defaults only** -
+always override them with your own current, local quotations before
+relying on the cost estimate.
 
 ---
 

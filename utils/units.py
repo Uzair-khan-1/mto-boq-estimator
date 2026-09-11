@@ -1,106 +1,154 @@
 """
-Unit conversion utilities for SI <-> FPS (feet-pound-second / Pakistani
-construction industry practice) display.
+Unit-system conversion helpers.
 
-CRITICAL DESIGN RULE: engineering/calculations.py ALWAYS works internally in
-SI units (meters, sqm, m3, kg) - none of that code changes based on unit
-system. This module only converts values at the UI edges:
-  - when the user types a dimension into an input field (display -> SI)
-  - when a computed quantity/rate is shown or exported (SI -> display)
+DESIGN RULE (mirrors the "AI never calculates" rule in engineering/): every
+number is stored and calculated internally in SI/metric units (m, m2/sqm,
+m3, kg) exactly as before. Nothing in engineering/calculations.py,
+mto_boq/boq_generator.py, or models/schemas.py changes its unit
+convention. This module is a pure DISPLAY/INPUT conversion layer:
 
-This keeps the calculation engine simple and auditable regardless of which
-unit system the user picks, and avoids ever needing two parallel sets of
-engineering formulas.
+  - The UI shows values in feet/inches/sqft/cft when the user picks the
+    "FPS" unit system, but immediately converts them back to SI before
+    storing them in an Estimate or MaterialRate.
+  - The MTO/BOQ tables and exports convert SI quantities/rates to
+    FPS-equivalent values purely for display; the underlying arithmetic
+    (quantity * rate = amount) is unaffected because both quantity and
+    rate are converted by the same factor in opposite directions, so
+    amounts always come out identical regardless of which unit system is
+    selected.
 
-Unit conventions used for FPS ("Imperial") display, matching common
-Pakistani/subcontinent construction practice:
-  - Large/running dimensions (lengths, heights, spans)      -> feet (ft)
-  - Cross-section / thickness dimensions (column b x d,      -> inches (in)
-    beam b x d, wall thickness, slab thickness)
-  - Areas (plinth area, plaster area, wall area, etc.)       -> square feet (sft)
-  - Volumes (concrete, excavation, masonry, mortar)          -> cubic feet (cft)
-  - Counts (footing/column/beam count, doors, windows,       -> unchanged (Nos)
-    masonry units)
-  - Steel reinforcement weight                                -> unchanged (kg)
-    (kg is standard market practice for rebar even in
-    FPS-based Pakistani estimation - it is never quoted in
-    lb on site, so we deliberately do NOT convert this)
+Unit conventions used when "FPS" is selected (standard Pakistani
+construction practice):
+  - length            -> feet (ft)
+  - small "thickness"-type dimensions (slab/wall thickness, column &
+    beam cross-section) -> inches (in), since these are conventionally
+    quoted in inches even in FPS-speaking markets (e.g. "9 inch wall",
+    "5 inch slab", "9x18 column")
+  - area              -> square feet (sqft)
+  - volume            -> cubic feet (cft)
+  - weight (steel)    -> kilograms (kg) - unchanged in both systems,
+    since Pakistani steel markets always quote/sell by the kg regardless
+    of whether the rest of the job is being measured in feet or metres.
+  - counts / lump-sum -> unchanged
 """
 from __future__ import annotations
 
-M_PER_FT = 0.3048
-M_PER_INCH = 0.0254
-FT_PER_M = 1.0 / M_PER_FT
-INCH_PER_M = 1.0 / M_PER_INCH
-SFT_PER_M2 = 10.763910417
-CFT_PER_M3 = 35.314666721
+from typing import Tuple
 
 SI = "SI"
 FPS = "FPS"
 
+UNIT_SYSTEM_LABELS = {
+    SI: "SI (Metric - m, m², m³)",
+    FPS: "FPS (Feet-Inch, Pakistani practice - ft, sqft, cft)",
+}
 
 # --------------------------------------------------------------------------
-# Single-value conversions (used by editable Estimate input widgets)
+# Base conversion factors
 # --------------------------------------------------------------------------
+FT_PER_M = 3.280839895
+M_PER_FT = 1.0 / FT_PER_M
+
+IN_PER_M = 39.37007874
+M_PER_IN = 1.0 / IN_PER_M
+
+SQFT_PER_SQM = FT_PER_M ** 2  # 10.76391...
+SQM_PER_SQFT = 1.0 / SQFT_PER_SQM
+
+CFT_PER_CUM = FT_PER_M ** 3  # 35.31467...
+CUM_PER_CFT = 1.0 / CFT_PER_CUM
 
 
-def length_to_display(value_m: float, unit_system: str) -> float:
-    """Running dimensions (lengths, heights, spans): m -> ft for FPS."""
-    return value_m * FT_PER_M if unit_system == FPS else value_m
-
-
-def length_from_display(value_disp: float, unit_system: str) -> float:
-    return value_disp * M_PER_FT if unit_system == FPS else value_disp
-
-
-def thickness_to_display(value_m: float, unit_system: str) -> float:
-    """Cross-section / thickness dimensions: m -> inches for FPS."""
-    return value_m * INCH_PER_M if unit_system == FPS else value_m
-
-
-def thickness_from_display(value_disp: float, unit_system: str) -> float:
-    return value_disp * M_PER_INCH if unit_system == FPS else value_disp
-
-
-def area_to_display(value_sqm: float, unit_system: str) -> float:
-    return value_sqm * SFT_PER_M2 if unit_system == FPS else value_sqm
-
-
-def area_from_display(value_disp: float, unit_system: str) -> float:
-    return value_disp / SFT_PER_M2 if unit_system == FPS else value_disp
-
-
-def length_unit_label(unit_system: str) -> str:
-    return "ft" if unit_system == FPS else "m"
-
-
-def thickness_unit_label(unit_system: str) -> str:
-    return "in" if unit_system == FPS else "m"
-
-
-def area_unit_label(unit_system: str) -> str:
-    return "sft" if unit_system == FPS else "sqm"
-
-
-def volume_unit_label(unit_system: str) -> str:
-    return "cft" if unit_system == FPS else "m3"
+def is_fps(unit_system: str) -> bool:
+    return unit_system == FPS
 
 
 # --------------------------------------------------------------------------
-# MTO/BOQ quantity conversion (SI quantity+unit -> display quantity+unit)
+# Scalar dimension conversion (used on the Step-3 edit form). "kind" is one
+# of "length", "thickness", "area", or None (no conversion - counts etc.)
 # --------------------------------------------------------------------------
 
 
-def convert_quantity_unit(quantity: float, unit: str, unit_system: str) -> tuple[float, str]:
-    """Convert a computed MTO/BOQ line item's SI quantity for display.
+def to_display(value_si: float, kind: str | None, unit_system: str) -> float:
+    """Convert a canonical SI value to the display value for unit_system."""
+    if not is_fps(unit_system) or kind is None:
+        return value_si
+    if kind == "length":
+        return value_si * FT_PER_M
+    if kind == "thickness":
+        return value_si * IN_PER_M
+    if kind == "area":
+        return value_si * SQFT_PER_SQM
+    return value_si
 
-    Only m3 -> cft and m2 -> sft change. kg (steel), Nos (counts), and LS
-    (lump-sum) are unit-system-agnostic and pass through unchanged.
-    """
-    if unit_system != FPS:
-        return quantity, unit
-    if unit == "m3":
-        return quantity * CFT_PER_M3, "cft"
-    if unit == "m2":
-        return quantity * SFT_PER_M2, "sft"
-    return quantity, unit
+
+def to_si(value_display: float, kind: str | None, unit_system: str) -> float:
+    """Convert a display value (already in the user's chosen system) back
+    to canonical SI for storage in an Estimate."""
+    if not is_fps(unit_system) or kind is None:
+        return value_display
+    if kind == "length":
+        return value_display * M_PER_FT
+    if kind == "thickness":
+        return value_display * M_PER_IN
+    if kind == "area":
+        return value_display * SQM_PER_SQFT
+    return value_display
+
+
+def dimension_unit_label(kind: str | None, unit_system: str) -> str:
+    if kind is None:
+        return ""
+    if not is_fps(unit_system):
+        return {"length": "m", "thickness": "m", "area": "sqm"}.get(kind, "")
+    return {"length": "ft", "thickness": "in", "area": "sqft"}.get(kind, "")
+
+
+# --------------------------------------------------------------------------
+# MTO/BOQ line-item unit conversion. Canonical units used throughout
+# QuantityLineItem / BOQLineItem / MaterialRate are "m3", "m2", "kg",
+# "Nos", "LS" - only "m3" and "m2" have an FPS equivalent.
+# --------------------------------------------------------------------------
+
+_CANONICAL_TO_FPS_UNIT = {"m3": "cft", "m2": "sqft"}
+_QTY_FACTOR = {"m3": CFT_PER_CUM, "m2": SQFT_PER_SQM}
+
+
+def display_unit(canonical_unit: str, unit_system: str) -> str:
+    """The unit label to show for a given canonical unit + unit system."""
+    if not is_fps(unit_system):
+        return canonical_unit
+    return _CANONICAL_TO_FPS_UNIT.get(canonical_unit, canonical_unit)
+
+
+def display_quantity(value_si: float, canonical_unit: str, unit_system: str) -> float:
+    """Convert an SI quantity (m3/m2/kg/Nos/LS) to its display equivalent."""
+    if not is_fps(unit_system):
+        return value_si
+    factor = _QTY_FACTOR.get(canonical_unit)
+    return value_si * factor if factor else value_si
+
+
+def display_rate(rate_si: float, canonical_unit: str, unit_system: str) -> float:
+    """Convert a rate quoted per canonical SI unit (e.g. PKR/m3) into the
+    equivalent rate per display unit (e.g. PKR/cft), such that
+    display_quantity * display_rate == si_quantity * si_rate (the amount
+    is always unit-system-invariant)."""
+    if not is_fps(unit_system):
+        return rate_si
+    factor = _QTY_FACTOR.get(canonical_unit)
+    return rate_si / factor if factor else rate_si
+
+
+def rate_to_si(rate_display: float, canonical_unit: str, unit_system: str) -> float:
+    """Inverse of display_rate - used when the user edits a rate in the
+    rate-book editor while FPS is selected, to convert back to the
+    canonical per-m3/per-m2 rate that generate_boq() expects."""
+    if not is_fps(unit_system):
+        return rate_display
+    factor = _QTY_FACTOR.get(canonical_unit)
+    return rate_display * factor if factor else rate_display
+
+
+def quantity_and_unit_for_display(value_si: float, canonical_unit: str, unit_system: str) -> Tuple[float, str]:
+    return display_quantity(value_si, canonical_unit, unit_system), display_unit(canonical_unit, unit_system)

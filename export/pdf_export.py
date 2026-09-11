@@ -25,6 +25,7 @@ from reportlab.platypus import (
 
 import config
 from models.schemas import BOQLineItem, CostSummary, ExtractedBuildingParams, ProjectInputs, QuantityLineItem
+from utils import units
 
 styles = getSampleStyleSheet()
 TITLE_STYLE = ParagraphStyle("TitleX", parent=styles["Title"], fontSize=18)
@@ -41,11 +42,13 @@ LOW_CONF_BG = colors.HexColor("#FFF3CD")
 
 
 def _project_info_table(project_inputs: ProjectInputs) -> Table:
+    unit_system_label = units.UNIT_SYSTEM_LABELS.get(project_inputs.unit_system, project_inputs.unit_system)
     data = [
         ["Project", project_inputs.project_name, "Location", project_inputs.location],
         ["Client", project_inputs.client_name or "-", "Soil Type", project_inputs.soil_type],
         ["Concrete (Ftg/Col/Beam/Slab)", f"{project_inputs.concrete_grade_footing}/{project_inputs.concrete_grade_column}/{project_inputs.concrete_grade_beam}/{project_inputs.concrete_grade_slab}", "Steel Grade", project_inputs.steel_grade],
         ["Wall Material", project_inputs.wall_material, "Finish Level", project_inputs.finish_level],
+        ["Unit System", unit_system_label, "Currency", project_inputs.currency],
     ]
     t = Table(data, colWidths=[45 * mm, 65 * mm, 30 * mm, 40 * mm])
     t.setStyle(
@@ -64,12 +67,13 @@ def _project_info_table(project_inputs: ProjectInputs) -> Table:
     return t
 
 
-def _mto_table(mto_items: List[QuantityLineItem]) -> Table:
+def _mto_table(mto_items: List[QuantityLineItem], unit_system: str = units.SI) -> Table:
     header = ["Code", "Category", "Description", "Unit", "Qty", "Conf."]
     data = [header]
     row_confidences = []
     for i in mto_items:
-        data.append([i.item_code, i.category, Paragraph(i.description, SMALL), i.unit, f"{i.quantity:,.2f}", i.confidence.value])
+        qty, unit = units.quantity_and_unit_for_display(i.quantity, i.unit, unit_system)
+        data.append([i.item_code, i.category, Paragraph(i.description, SMALL), unit, f"{qty:,.2f}", i.confidence.value])
         row_confidences.append(i.confidence.value)
 
     t = Table(data, colWidths=[22 * mm, 22 * mm, 75 * mm, 15 * mm, 22 * mm, 18 * mm], repeatRows=1)
@@ -89,18 +93,20 @@ def _mto_table(mto_items: List[QuantityLineItem]) -> Table:
     return t
 
 
-def _boq_table(boq_items: List[BOQLineItem], currency_symbol: str) -> Table:
+def _boq_table(boq_items: List[BOQLineItem], currency_symbol: str, unit_system: str = units.SI) -> Table:
     header = ["Code", "Description", "Unit", "Qty (+wastage)", "Rate", "Amount"]
     data = [header]
     row_confidences = []
     for i in boq_items:
+        qty_wastage, unit = units.quantity_and_unit_for_display(i.quantity_with_wastage, i.unit, unit_system)
+        rate = units.display_rate(i.rate, i.unit, unit_system)
         data.append(
             [
                 i.item_code,
                 Paragraph(i.description, SMALL),
-                i.unit,
-                f"{i.quantity_with_wastage:,.2f}",
-                f"{currency_symbol}{i.rate:,.2f}",
+                unit,
+                f"{qty_wastage:,.2f}",
+                f"{currency_symbol}{rate:,.2f}",
                 f"{currency_symbol}{i.amount:,.2f}",
             ]
         )
@@ -153,6 +159,7 @@ def build_pdf_report(
     boq_items: List[BOQLineItem],
     cost_summary: CostSummary,
 ) -> bytes:
+    unit_system = project_inputs.unit_system
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf,
@@ -179,16 +186,22 @@ def build_pdf_report(
         warn_text = " | ".join(params.extraction_warnings)
         story.append(Paragraph("<b>Warnings:</b> " + warn_text, SMALL))
 
+    unit_note = (
+        f"Quantities shown in {units.UNIT_SYSTEM_LABELS.get(unit_system, unit_system)}. "
+        "All calculations are performed internally in SI/metric units."
+    )
+
     story.append(PageBreak())
     story.append(Paragraph("Material Take-Off (MTO)", H2_STYLE))
-    story.append(Paragraph("Rows highlighted yellow are Low-confidence - verify against actual drawings.", SMALL))
+    story.append(Paragraph("Rows highlighted yellow are Low-confidence - verify against actual drawings. " + unit_note, SMALL))
     story.append(Spacer(1, 6))
-    story.append(_mto_table(mto_items))
+    story.append(_mto_table(mto_items, unit_system))
 
     story.append(PageBreak())
     story.append(Paragraph("Bill of Quantities (BOQ)", H2_STYLE))
+    story.append(Paragraph(unit_note + " Amounts are unaffected by unit system.", SMALL))
     story.append(Spacer(1, 6))
-    story.append(_boq_table(boq_items, config.DEFAULT_CURRENCY_SYMBOL))
+    story.append(_boq_table(boq_items, config.DEFAULT_CURRENCY_SYMBOL, unit_system))
     story.append(Spacer(1, 12))
     story.append(Paragraph("Cost Summary", H2_STYLE))
     story.append(_cost_summary_table(cost_summary, config.DEFAULT_CURRENCY_SYMBOL))

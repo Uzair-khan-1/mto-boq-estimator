@@ -30,6 +30,7 @@ from mto_boq.boq_generator import boq_to_dataframe, cost_by_category, generate_b
 from mto_boq.mto_generator import compute_reinforcement_summary, generate_mto, group_by_category, mto_to_dataframe
 from ui.components import confidence_badge, render_estimate_input, render_rate_editor, render_wastage_editor
 from ui.state import go_to_step, init_session_state, reset_project
+from utils import units
 
 st.set_page_config(page_title=config.APP_NAME, page_icon="\U0001f3d7\ufe0f", layout="wide")
 init_session_state()
@@ -69,6 +70,22 @@ def step_1():
 
     pi: ProjectInputs = st.session_state["project_inputs"]
 
+    st.markdown("##### Units")
+    unit_system_options = [units.SI, units.FPS]
+    unit_system = st.selectbox(
+        "Unit System",
+        options=unit_system_options,
+        format_func=lambda v: units.UNIT_SYSTEM_LABELS[v],
+        index=unit_system_options.index(pi.unit_system) if pi.unit_system in unit_system_options else 0,
+        help=(
+            "Choose whether dimensions are entered/displayed in SI (metric: m, m², m³) or FPS "
+            "(feet/inches, cft, sqft - standard Pakistani construction practice). All engineering "
+            "calculations are always performed internally in SI regardless of this choice, so "
+            "switching later never changes the underlying numbers - only how they're shown."
+        ),
+        key="unit_system_selector",
+    )
+
     with st.form("project_setup_form"):
         c1, c2 = st.columns(2)
         with c1:
@@ -85,7 +102,12 @@ def step_1():
             pcc_grade = st.selectbox("PCC Grade", ["M7.5", "M10", "M15"], index=1)
             steel_grade = st.selectbox("Steel Grade", ["Fe415", "Fe500", "Fe550"], index=1)
             wall_material = st.selectbox("Wall Material", list(rules.MASONRY_UNIT_SIZES_M.keys()))
-            wall_thickness_mm = st.selectbox("Wall Thickness (mm)", [100, 115, 150, 200, 230], index=4)
+            wall_thickness_mm = st.selectbox(
+                "Wall Thickness",
+                [100, 115, 150, 200, 230],
+                index=4,
+                format_func=lambda mm: f'{mm / 25.4:.1f}" ({mm} mm)' if unit_system == units.FPS else f"{mm} mm",
+            )
 
         st.markdown("##### Finishes & scope toggles")
         t1, t2, t3, t4, t5 = st.columns(5)
@@ -123,6 +145,7 @@ def step_1():
             include_dpc=include_dpc,
             include_anti_termite=include_anti_termite,
             contingency_pct=contingency_pct,
+            unit_system=unit_system,
         )
         if uploaded is not None:
             st.session_state["uploaded_file_bytes"] = uploaded.getvalue()
@@ -234,6 +257,12 @@ def step_2():
 def step_3():
     st.header("Step 3 \u00b7 Verify & Edit Extracted Parameters")
     params = st.session_state["extracted_params"]
+    unit_system = st.session_state["project_inputs"].unit_system
+    if units.is_fps(unit_system):
+        st.caption(
+            "Unit system: **FPS** - dimensions below are shown in feet/inches (Pakistani practice). "
+            "Values are converted to metric internally for calculation; switch back to SI in Step 1 at any time."
+        )
 
     if st.session_state.get("ai_errors"):
         for e in st.session_state["ai_errors"]:
@@ -259,7 +288,7 @@ def step_3():
         with c1:
             params.num_floors = render_estimate_input("Number of RCC slab levels (incl. roof)", params.num_floors, "num_floors_inp", "floors", step=1.0)
         with c2:
-            params.plinth_area_per_floor_sqm = render_estimate_input("Plinth/built-up area per floor", params.plinth_area_per_floor_sqm, "plinth_area_inp", "sqm", step=1.0)
+            params.plinth_area_per_floor_sqm = render_estimate_input("Plinth/built-up area per floor", params.plinth_area_per_floor_sqm, "plinth_area_inp", step=1.0, unit_system=unit_system, quantity_kind="area")
 
     with st.expander("Footings", expanded=True):
         params.footings.footing_type = st.selectbox("Footing type", ["isolated", "strip", "raft", "combined"], index=["isolated", "strip", "raft", "combined"].index(params.footings.footing_type))
@@ -267,49 +296,49 @@ def step_3():
         with c1:
             params.footings.count = render_estimate_input("Count", params.footings.count, "ftg_count", "nos", step=1.0)
         with c2:
-            params.footings.length_m = render_estimate_input("Length", params.footings.length_m, "ftg_len", "m", step=0.05)
+            params.footings.length_m = render_estimate_input("Length", params.footings.length_m, "ftg_len", step=0.05, unit_system=unit_system, quantity_kind="length")
         with c3:
-            params.footings.width_m = render_estimate_input("Width", params.footings.width_m, "ftg_wid", "m", step=0.05)
+            params.footings.width_m = render_estimate_input("Width", params.footings.width_m, "ftg_wid", step=0.05, unit_system=unit_system, quantity_kind="length")
         with c4:
-            params.footings.depth_m = render_estimate_input("Depth", params.footings.depth_m, "ftg_dep", "m", step=0.05)
+            params.footings.depth_m = render_estimate_input("Depth", params.footings.depth_m, "ftg_dep", step=0.05, unit_system=unit_system, quantity_kind="length")
 
     with st.expander("Columns", expanded=True):
         c1, c2, c3, c4 = st.columns(4)
         with c1:
             params.columns.count = render_estimate_input("Count", params.columns.count, "col_count", "nos", step=1.0)
         with c2:
-            params.columns.width_m = render_estimate_input("Width (b)", params.columns.width_m, "col_b", "m", step=0.01)
+            params.columns.width_m = render_estimate_input("Width (b)", params.columns.width_m, "col_b", step=0.01, unit_system=unit_system, quantity_kind="thickness")
         with c3:
-            params.columns.depth_m = render_estimate_input("Depth (d)", params.columns.depth_m, "col_d", "m", step=0.01)
+            params.columns.depth_m = render_estimate_input("Depth (d)", params.columns.depth_m, "col_d", step=0.01, unit_system=unit_system, quantity_kind="thickness")
         with c4:
-            params.columns.height_per_floor_m = render_estimate_input("Height/floor", params.columns.height_per_floor_m, "col_h", "m", step=0.05)
+            params.columns.height_per_floor_m = render_estimate_input("Height/floor", params.columns.height_per_floor_m, "col_h", step=0.05, unit_system=unit_system, quantity_kind="length")
 
     with st.expander("Beams", expanded=True):
         c1, c2, c3, c4 = st.columns(4)
         with c1:
             params.beams.count = render_estimate_input("Count per level", params.beams.count, "beam_count", "nos", step=1.0)
         with c2:
-            params.beams.avg_length_m = render_estimate_input("Avg length", params.beams.avg_length_m, "beam_len", "m", step=0.1)
+            params.beams.avg_length_m = render_estimate_input("Avg length", params.beams.avg_length_m, "beam_len", step=0.1, unit_system=unit_system, quantity_kind="length")
         with c3:
-            params.beams.width_m = render_estimate_input("Width", params.beams.width_m, "beam_w", "m", step=0.01)
+            params.beams.width_m = render_estimate_input("Width", params.beams.width_m, "beam_w", step=0.01, unit_system=unit_system, quantity_kind="thickness")
         with c4:
-            params.beams.depth_m = render_estimate_input("Depth", params.beams.depth_m, "beam_d", "m", step=0.01)
+            params.beams.depth_m = render_estimate_input("Depth", params.beams.depth_m, "beam_d", step=0.01, unit_system=unit_system, quantity_kind="thickness")
 
     with st.expander("Slabs", expanded=True):
         c1, c2 = st.columns(2)
         with c1:
-            params.slabs.area_per_floor_sqm = render_estimate_input("Area per floor", params.slabs.area_per_floor_sqm, "slab_area", "sqm", step=1.0)
+            params.slabs.area_per_floor_sqm = render_estimate_input("Area per floor", params.slabs.area_per_floor_sqm, "slab_area", step=1.0, unit_system=unit_system, quantity_kind="area")
         with c2:
-            params.slabs.thickness_m = render_estimate_input("Thickness", params.slabs.thickness_m, "slab_t", "m", step=0.005)
+            params.slabs.thickness_m = render_estimate_input("Thickness", params.slabs.thickness_m, "slab_t", step=0.005, unit_system=unit_system, quantity_kind="thickness")
 
     with st.expander("Walls / Masonry", expanded=True):
         c1, c2, c3 = st.columns(3)
         with c1:
-            params.walls.total_length_per_floor_m = render_estimate_input("Total wall length/floor", params.walls.total_length_per_floor_m, "wall_len", "m", step=0.5)
+            params.walls.total_length_per_floor_m = render_estimate_input("Total wall length/floor", params.walls.total_length_per_floor_m, "wall_len", step=0.5, unit_system=unit_system, quantity_kind="length")
         with c2:
-            params.walls.height_m = render_estimate_input("Wall height", params.walls.height_m, "wall_h", "m", step=0.05)
+            params.walls.height_m = render_estimate_input("Wall height", params.walls.height_m, "wall_h", step=0.05, unit_system=unit_system, quantity_kind="length")
         with c3:
-            params.walls.thickness_m = render_estimate_input("Wall thickness", params.walls.thickness_m, "wall_t", "m", step=0.01)
+            params.walls.thickness_m = render_estimate_input("Wall thickness", params.walls.thickness_m, "wall_t", step=0.01, unit_system=unit_system, quantity_kind="thickness")
         params.walls.wall_material = st.selectbox(
             "Wall material", list(rules.MASONRY_UNIT_SIZES_M.keys()),
             index=list(rules.MASONRY_UNIT_SIZES_M.keys()).index(params.walls.wall_material) if params.walls.wall_material in rules.MASONRY_UNIT_SIZES_M else 0,
@@ -320,11 +349,11 @@ def step_3():
         with c1:
             params.openings.door_count_per_floor = render_estimate_input("Doors/floor", params.openings.door_count_per_floor, "door_count", "nos", step=1.0)
         with c2:
-            params.openings.avg_door_area_sqm = render_estimate_input("Avg door area", params.openings.avg_door_area_sqm, "door_area", "sqm", step=0.05)
+            params.openings.avg_door_area_sqm = render_estimate_input("Avg door area", params.openings.avg_door_area_sqm, "door_area", step=0.05, unit_system=unit_system, quantity_kind="area")
         with c3:
             params.openings.window_count_per_floor = render_estimate_input("Windows/floor", params.openings.window_count_per_floor, "win_count", "nos", step=1.0)
         with c4:
-            params.openings.avg_window_area_sqm = render_estimate_input("Avg window area", params.openings.avg_window_area_sqm, "win_area", "sqm", step=0.05)
+            params.openings.avg_window_area_sqm = render_estimate_input("Avg window area", params.openings.avg_window_area_sqm, "win_area", step=0.05, unit_system=unit_system, quantity_kind="area")
 
     st.session_state["extracted_params"] = params
 
@@ -347,12 +376,16 @@ def step_3():
 def step_4():
     st.header("Step 4 \u00b7 Material Take-Off (MTO)")
     mto_items = st.session_state["mto_items"]
+    unit_system = st.session_state["project_inputs"].unit_system
 
     summary = compute_reinforcement_summary(mto_items)
     badge_color = "green" if summary["status"] == "OK" else "orange"
     st.markdown(f":{badge_color}[**Steel sanity check:** {summary['message']}]")
 
-    df = mto_to_dataframe(mto_items)
+    if units.is_fps(unit_system):
+        st.caption("Quantities below are shown in FPS (cft/sqft). All engineering calculations are performed internally in SI/metric units.")
+
+    df = mto_to_dataframe(mto_items, unit_system=unit_system)
     st.dataframe(df, use_container_width=True, hide_index=True)
 
     st.markdown("##### Calculation breakdown / traceability")
@@ -360,9 +393,10 @@ def step_4():
     for category, items in grouped.items():
         with st.expander(f"{category} ({len(items)} item{'s' if len(items) != 1 else ''})"):
             for item in items:
+                display_qty, display_unit = units.quantity_and_unit_for_display(item.quantity, item.unit, unit_system)
                 st.markdown(f"**{item.item_code} \u2014 {item.description}**  {confidence_badge(item.confidence)}", unsafe_allow_html=True)
-                st.write(f"Quantity: **{item.quantity:,.3f} {item.unit}**")
-                st.caption(f"Formula: {item.formula}")
+                st.write(f"Quantity: **{display_qty:,.3f} {display_unit}**")
+                st.caption(f"Formula (metric): {item.formula}")
                 if item.inputs_used:
                     st.caption("Inputs used: " + ", ".join(f"{k}={v}" for k, v in item.inputs_used.items()))
                 for a in item.assumptions:
@@ -392,7 +426,12 @@ def step_5():
         st.session_state["wastage_factors"] = render_wastage_editor(st.session_state["wastage_factors"])
 
     with st.expander("Material & labour rates", expanded=False):
-        st.session_state["rate_book"] = render_rate_editor(st.session_state["rate_book"])
+        st.caption(config.RATE_BOOK_NOTE)
+        st.session_state["rate_book"] = render_rate_editor(
+            st.session_state["rate_book"],
+            unit_system=pi.unit_system,
+            currency_symbol=config.DEFAULT_CURRENCY_SYMBOL,
+        )
 
     contingency_pct = st.slider("Contingency % (final)", 0.0, 20.0, pi.contingency_pct, 0.5)
     pi.contingency_pct = contingency_pct
@@ -412,7 +451,10 @@ def step_5():
         boq_items = st.session_state["boq_items"]
         cost_summary = st.session_state["cost_summary"]
 
-        df = boq_to_dataframe(boq_items)
+        if units.is_fps(pi.unit_system):
+            st.caption("Quantities/Rates below are shown in FPS (cft/sqft). Amounts and totals are unaffected by unit system.")
+
+        df = boq_to_dataframe(boq_items, unit_system=pi.unit_system)
         st.dataframe(df, use_container_width=True, hide_index=True)
 
         m1, m2, m3 = st.columns(3)

@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 
 APP_NAME = "AI Residential MTO/BOQ Estimator"
-APP_VERSION = "0.1.0-mvp"
+APP_VERSION = "0.2.0-mvp"
 
 # Groq model IDs. Kept in one place so they're easy to bump as Groq
 # updates its free-tier vision-capable model lineup.
@@ -23,8 +23,26 @@ GROQ_TEXT_MODEL = "openai/gpt-oss-120b"
 MAX_IMAGE_DIMENSION = 1600
 
 # Default currency for the rate book / cost estimate.
-DEFAULT_CURRENCY = "INR"
-DEFAULT_CURRENCY_SYMBOL = "\u20b9"
+DEFAULT_CURRENCY = "PKR"
+DEFAULT_CURRENCY_SYMBOL = "PKR "
+
+# Default unit system shown on a fresh project ("SI" or "FPS" - see
+# models.schemas.UnitSystem). The user can switch this per-project in
+# Step 1; every internal calculation stays in SI regardless of this
+# setting (see utils/units.py).
+DEFAULT_UNIT_SYSTEM = "SI"
+
+# Rate book provenance note shown in the UI (Step 5) and in exports, so
+# users know how current/local the shipped default rates are.
+RATE_BOOK_AS_OF = "September 2026"
+RATE_BOOK_NOTE = (
+    "Default rates are indicative Pakistani market rates (as of "
+    f"{RATE_BOOK_AS_OF}), built up from published material prices "
+    "(cement, steel, sand, crush, bricks, plaster, paint) plus standard "
+    "nominal-mix/labour allowances - NOT a live feed and NOT city- or "
+    "supplier-specific. Always override with your own current, local "
+    "quotations before relying on the cost estimate."
+)
 
 # Supported upload types
 SUPPORTED_FILE_TYPES = ["pdf", "png", "jpg", "jpeg"]

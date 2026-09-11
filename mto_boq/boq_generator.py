@@ -27,6 +27,7 @@ from models.schemas import (
     QuantityLineItem,
     WastageFactors,
 )
+from utils import units
 
 # Maps a quantity item's category to the relevant wastage-factor field name
 CATEGORY_TO_WASTAGE_FIELD = {
@@ -133,28 +134,39 @@ def generate_boq(
     return boq_items, cost_summary
 
 
-def boq_to_dataframe(items: List[BOQLineItem]) -> pd.DataFrame:
-    rows = [
-        {
-            "Item Code": i.item_code,
-            "Category": i.category,
-            "Description": i.description,
-            "Unit": i.unit,
-            "Quantity": i.quantity,
-            "Wastage %": i.wastage_pct,
-            "Qty incl. Wastage": i.quantity_with_wastage,
-            "Rate": i.rate,
-            "Amount": i.amount,
-            "Confidence": i.confidence.value,
-            "Remarks": i.remarks,
-        }
-        for i in items
-    ]
+def boq_to_dataframe(items: List[BOQLineItem], unit_system: str = units.SI) -> pd.DataFrame:
+    """`unit_system` only affects the displayed Unit/Quantity/Rate columns.
+    Quantity and Rate are converted by inverse factors (see
+    utils/units.py), so Quantity x Rate always reproduces the same
+    Amount regardless of which unit system is selected - Amount itself
+    (a currency figure) is never converted."""
+    rows = []
+    for i in items:
+        qty, unit = units.quantity_and_unit_for_display(i.quantity, i.unit, unit_system)
+        qty_wastage, _ = units.quantity_and_unit_for_display(i.quantity_with_wastage, i.unit, unit_system)
+        rate = units.display_rate(i.rate, i.unit, unit_system)
+        rows.append(
+            {
+                "Item Code": i.item_code,
+                "Category": i.category,
+                "Description": i.description,
+                "Unit": unit,
+                "Quantity": round(qty, 3),
+                "Wastage %": i.wastage_pct,
+                "Qty incl. Wastage": round(qty_wastage, 3),
+                "Rate": round(rate, 2),
+                "Amount": i.amount,
+                "Confidence": i.confidence.value,
+                "Remarks": i.remarks,
+            }
+        )
     return pd.DataFrame(rows)
 
 
 def cost_by_category(items: List[BOQLineItem]) -> pd.DataFrame:
-    df = boq_to_dataframe(items)
+    # Category totals are pure currency amounts - unaffected by unit
+    # system - so this always uses the canonical (SI) dataframe.
+    df = boq_to_dataframe(items, unit_system=units.SI)
     if df.empty:
         return df
     grouped = df.groupby("Category", as_index=False)["Amount"].sum().sort_values("Amount", ascending=False)

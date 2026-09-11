@@ -32,6 +32,17 @@ class Source(str, Enum):
     USER_INPUT = "User-input"
 
 
+class UnitSystem(str, Enum):
+    """Which unit system the user sees on input/output screens and in the
+    exported MTO/BOQ. Every internal calculation in engineering/ and
+    mto_boq/ ALWAYS operates in SI (m, m2, m3, kg) regardless of this
+    setting - conversion happens only in the UI/export display layer
+    (see utils/units.py)."""
+
+    SI = "SI"
+    FPS = "FPS"
+
+
 class Estimate(BaseModel):
     """A single numeric field with confidence + provenance, editable by the user."""
 
@@ -135,7 +146,8 @@ class ProjectInputs(BaseModel):
     include_dpc: bool = True
     include_anti_termite: bool = True
     contingency_pct: float = 5.0
-    currency: str = "INR"
+    currency: str = "PKR"
+    unit_system: str = UnitSystem.SI.value  # "SI" or "FPS" - see UnitSystem
 
 
 class WastageFactors(BaseModel):
@@ -198,7 +210,7 @@ class CostSummary(BaseModel):
     contingency_pct: float
     contingency_amount: float
     grand_total: float
-    currency: str = "INR"
+    currency: str = "PKR"
 
 
 class ProjectResult(BaseModel):
