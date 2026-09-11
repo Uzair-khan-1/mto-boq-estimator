@@ -50,6 +50,8 @@ SUPPORTED_FILE_TYPES = ["pdf", "png", "jpg", "jpeg"]
 # Confidence levels used throughout the app (AI extraction + calculations)
 CONFIDENCE_LEVELS = ["High", "Medium", "Low"]
 
+# Full disclaimer - used in the Excel/PDF exports, where a complete,
+# unambiguous legal caveat belongs in the deliverable itself.
 DISCLAIMER_TEXT = (
     "This tool generates a PRELIMINARY, indicative Material Take-Off (MTO), "
     "Bill of Quantities (BOQ), and cost estimate using standard engineering "
@@ -59,6 +61,14 @@ DISCLAIMER_TEXT = (
     "purposes without independent review and sign-off by a licensed "
     "structural engineer / qualified quantity surveyor. Always verify "
     "AI-extracted dimensions against the actual approved drawings."
+)
+
+# Short version shown in the Streamlit UI itself (sidebar / Step 5) as a
+# low-key caption rather than a large warning banner - the full legal
+# text above still appears in every exported Excel/PDF.
+DISCLAIMER_TEXT_SHORT = (
+    "Preliminary, AI-assisted estimate - not a certified structural or QS "
+    "estimate. Verify before tendering, construction, or financing."
 )
 
 

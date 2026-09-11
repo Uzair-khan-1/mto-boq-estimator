@@ -33,6 +33,7 @@ construction practice):
 """
 from __future__ import annotations
 
+import re
 from typing import Tuple
 
 SI = "SI"
@@ -152,3 +153,25 @@ def rate_to_si(rate_display: float, canonical_unit: str, unit_system: str) -> fl
 
 def quantity_and_unit_for_display(value_si: float, canonical_unit: str, unit_system: str) -> Tuple[float, str]:
     return display_quantity(value_si, canonical_unit, unit_system), display_unit(canonical_unit, unit_system)
+
+
+# --------------------------------------------------------------------------
+# Wall-material label relabeling. The wall_material STRING itself is a
+# lookup key into engineering.rules.MASONRY_UNIT_SIZES_M /
+# MORTAR_VOLUME_FRACTION, so it must never change - only how it's
+# displayed in the selectbox. This appends an inch-equivalent to any
+# "NxNxNmm" dimension pattern embedded in the label for FPS display.
+# --------------------------------------------------------------------------
+_MM_DIMS_RE = re.compile(r"(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)mm")
+
+
+def relabel_wall_material(label: str, unit_system: str) -> str:
+    if not is_fps(unit_system):
+        return label
+
+    def _sub(m: "re.Match[str]") -> str:
+        mm_vals = m.groups()
+        in_vals = [f"{float(v) / 25.4:.1f}" for v in mm_vals]
+        return "x".join(in_vals) + "in (" + "x".join(mm_vals) + "mm)"
+
+    return _MM_DIMS_RE.sub(_sub, label)

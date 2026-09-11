@@ -56,6 +56,30 @@ CONCRETE_GRADE_NOMINAL_MIX = {
     "M25": (1, 1, 2),
 }
 
+# Grade/strength-designation option lists shown in the UI, per unit system.
+# These are pure labels (interpolated into MTO descriptions/reports) - not
+# used in any calculation - so the FPS list uses psi/ASTM designations
+# instead of trying to convert the SI labels. Equivalent strength pairs
+# (1 MPa ~= 145 psi) line up at the same list index so the default
+# selectbox index works unchanged for either system.
+CONCRETE_GRADE_OPTIONS = {
+    "SI": list(CONCRETE_GRADE_NOMINAL_MIX.keys()),  # M10 / M15 / M20 / M25
+    "FPS": ["1500 psi", "2200 psi", "3000 psi", "3600 psi"],
+}
+CONCRETE_GRADE_DEFAULT_INDEX = 2  # M20 / 3000 psi - standard residential grade
+
+PCC_GRADE_OPTIONS = {
+    "SI": ["M7.5", "M10", "M15"],
+    "FPS": ["1100 psi", "1500 psi", "2200 psi"],
+}
+PCC_GRADE_DEFAULT_INDEX = 1  # M10 / 1500 psi
+
+STEEL_GRADE_OPTIONS = {
+    "SI": ["Fe415", "Fe500", "Fe550"],
+    "FPS": ["Grade 40 (40,000 psi)", "Grade 60 (60,000 psi)", "Grade 75 (75,000 psi)"],
+}
+STEEL_GRADE_DEFAULT_INDEX = 1  # Fe500 / Grade 60 - Grade 60 is Pakistan's standard residential rebar
+
 # Unit weight of steel reinforcement (kg/m3) - standard constant, used only
 # for cross-checks / sanity notes, not for the primary steel-quantity calc
 # (which uses the thumb-rule kg/m3-of-concrete method above).

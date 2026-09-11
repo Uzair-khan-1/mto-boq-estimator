@@ -58,7 +58,7 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.warning(config.DISCLAIMER_TEXT, icon="\u26a0\ufe0f")
+    st.caption(f"\u26a0\ufe0f {config.DISCLAIMER_TEXT_SHORT}")
 
 
 # ---------------------------------------------------------------------------
@@ -98,10 +98,27 @@ def step_1():
             )
             finish_level = st.selectbox("Finish Level", ["Basic", "Standard", "Premium"], index=["Basic", "Standard", "Premium"].index(pi.finish_level))
         with c2:
-            concrete_grade = st.selectbox("Concrete Grade (structural members)", list(rules.CONCRETE_GRADE_NOMINAL_MIX.keys()), index=2)
-            pcc_grade = st.selectbox("PCC Grade", ["M7.5", "M10", "M15"], index=1)
-            steel_grade = st.selectbox("Steel Grade", ["Fe415", "Fe500", "Fe550"], index=1)
-            wall_material = st.selectbox("Wall Material", list(rules.MASONRY_UNIT_SIZES_M.keys()))
+            grade_unit_key = units.FPS if unit_system == units.FPS else units.SI
+            concrete_grade = st.selectbox(
+                "Concrete Grade (structural members)",
+                rules.CONCRETE_GRADE_OPTIONS[grade_unit_key],
+                index=rules.CONCRETE_GRADE_DEFAULT_INDEX,
+            )
+            pcc_grade = st.selectbox(
+                "PCC Grade",
+                rules.PCC_GRADE_OPTIONS[grade_unit_key],
+                index=rules.PCC_GRADE_DEFAULT_INDEX,
+            )
+            steel_grade = st.selectbox(
+                "Steel Grade",
+                rules.STEEL_GRADE_OPTIONS[grade_unit_key],
+                index=rules.STEEL_GRADE_DEFAULT_INDEX,
+            )
+            wall_material = st.selectbox(
+                "Wall Material",
+                list(rules.MASONRY_UNIT_SIZES_M.keys()),
+                format_func=lambda v: units.relabel_wall_material(v, unit_system),
+            )
             wall_thickness_mm = st.selectbox(
                 "Wall Thickness",
                 [100, 115, 150, 200, 230],
@@ -341,6 +358,7 @@ def step_3():
             params.walls.thickness_m = render_estimate_input("Wall thickness", params.walls.thickness_m, "wall_t", step=0.01, unit_system=unit_system, quantity_kind="thickness")
         params.walls.wall_material = st.selectbox(
             "Wall material", list(rules.MASONRY_UNIT_SIZES_M.keys()),
+            format_func=lambda v: units.relabel_wall_material(v, unit_system),
             index=list(rules.MASONRY_UNIT_SIZES_M.keys()).index(params.walls.wall_material) if params.walls.wall_material in rules.MASONRY_UNIT_SIZES_M else 0,
         )
 
@@ -492,7 +510,7 @@ def step_5():
                 use_container_width=True,
             )
 
-        st.warning(config.DISCLAIMER_TEXT, icon="\u26a0\ufe0f")
+        st.caption(f"\u26a0\ufe0f {config.DISCLAIMER_TEXT_SHORT}")
 
     if st.button("\u2190 Back to Step 4 (MTO)"):
         go_to_step(4)
