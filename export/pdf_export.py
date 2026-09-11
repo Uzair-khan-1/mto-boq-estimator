@@ -25,6 +25,8 @@ from reportlab.platypus import (
 
 import config
 from models.schemas import BOQLineItem, CostSummary, ExtractedBuildingParams, ProjectInputs, QuantityLineItem
+from mto_boq.mto_generator import get_display_quantity_unit
+from utils.units import SI
 
 styles = getSampleStyleSheet()
 TITLE_STYLE = ParagraphStyle("TitleX", parent=styles["Title"], fontSize=18)
@@ -41,11 +43,13 @@ LOW_CONF_BG = colors.HexColor("#FFF3CD")
 
 
 def _project_info_table(project_inputs: ProjectInputs) -> Table:
+    unit_label = "FPS (ft/in, sft/cft)" if getattr(project_inputs, "unit_system", "SI") == "FPS" else "SI (metric)"
     data = [
         ["Project", project_inputs.project_name, "Location", project_inputs.location],
-        ["Client", project_inputs.client_name or "-", "Soil Type", project_inputs.soil_type],
-        ["Concrete (Ftg/Col/Beam/Slab)", f"{project_inputs.concrete_grade_footing}/{project_inputs.concrete_grade_column}/{project_inputs.concrete_grade_beam}/{project_inputs.concrete_grade_slab}", "Steel Grade", project_inputs.steel_grade],
-        ["Wall Material", project_inputs.wall_material, "Finish Level", project_inputs.finish_level],
+        ["Client", project_inputs.client_name or "-", "Unit System", unit_label],
+        ["Soil Type", project_inputs.soil_type, "Steel Grade", project_inputs.steel_grade],
+        ["Concrete (Ftg/Col/Beam/Slab)", f"{project_inputs.concrete_grade_footing}/{project_inputs.concrete_grade_column}/{project_inputs.concrete_grade_beam}/{project_inputs.concrete_grade_slab}", "Wall Material", project_inputs.wall_material],
+        ["Finish Level", project_inputs.finish_level, "", ""],
     ]
     t = Table(data, colWidths=[45 * mm, 65 * mm, 30 * mm, 40 * mm])
     t.setStyle(
@@ -64,12 +68,13 @@ def _project_info_table(project_inputs: ProjectInputs) -> Table:
     return t
 
 
-def _mto_table(mto_items: List[QuantityLineItem]) -> Table:
+def _mto_table(mto_items: List[QuantityLineItem], unit_system: str = SI) -> Table:
     header = ["Code", "Category", "Description", "Unit", "Qty", "Conf."]
     data = [header]
     row_confidences = []
     for i in mto_items:
-        data.append([i.item_code, i.category, Paragraph(i.description, SMALL), i.unit, f"{i.quantity:,.2f}", i.confidence.value])
+        disp_qty, disp_unit = get_display_quantity_unit(i, unit_system)
+        data.append([i.item_code, i.category, Paragraph(i.description, SMALL), disp_unit, f"{disp_qty:,.2f}", i.confidence.value])
         row_confidences.append(i.confidence.value)
 
     t = Table(data, colWidths=[22 * mm, 22 * mm, 75 * mm, 15 * mm, 22 * mm, 18 * mm], repeatRows=1)
@@ -153,6 +158,7 @@ def build_pdf_report(
     boq_items: List[BOQLineItem],
     cost_summary: CostSummary,
 ) -> bytes:
+    unit_system = getattr(project_inputs, "unit_system", SI)
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf,
@@ -183,7 +189,7 @@ def build_pdf_report(
     story.append(Paragraph("Material Take-Off (MTO)", H2_STYLE))
     story.append(Paragraph("Rows highlighted yellow are Low-confidence - verify against actual drawings.", SMALL))
     story.append(Spacer(1, 6))
-    story.append(_mto_table(mto_items))
+    story.append(_mto_table(mto_items, unit_system))
 
     story.append(PageBreak())
     story.append(Paragraph("Bill of Quantities (BOQ)", H2_STYLE))

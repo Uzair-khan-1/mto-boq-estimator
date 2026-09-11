@@ -37,25 +37,18 @@ from models.schemas import (
 logger = logging.getLogger(__name__)
 
 
-def _to_estimate(d, source: Source = Source.AI_EXTRACTED) -> Estimate:
-    """Parses the compact [value, "H|M|L"] array format. Also accepts the
-    older {value, confidence, note} object format for backward compatibility.
-    """
-    letter_map = {"H": "High", "M": "Medium", "L": "Low", "HIGH": "High", "MEDIUM": "Medium", "LOW": "Low"}
-
-    if isinstance(d, (list, tuple)) and len(d) >= 1:
-        value = d[0]
-        conf_raw = str(d[1]).strip().upper() if len(d) > 1 else "M"
-        note = ""
-    elif isinstance(d, dict) and "value" in d:
-        value = d["value"]
-        conf_raw = str(d.get("confidence", "M")).strip().upper()
-        note = str(d.get("note", ""))[:300]
-    else:
+def _to_estimate(d: dict, source: Source = Source.AI_EXTRACTED) -> Estimate:
+    if not isinstance(d, dict) or "value" not in d:
         raise ValueError(f"Malformed estimate field: {d!r}")
-
-    confidence = ConfidenceLevel(letter_map.get(conf_raw, "Medium"))
-    return Estimate(value=float(value), confidence=confidence, source=source, note=note)
+    conf_raw = str(d.get("confidence", "Medium")).strip().capitalize()
+    if conf_raw not in ("High", "Medium", "Low"):
+        conf_raw = "Medium"
+    return Estimate(
+        value=float(d["value"]),
+        confidence=ConfidenceLevel(conf_raw),
+        source=source,
+        note=str(d.get("note", ""))[:300],
+    )
 
 
 def _map_json_to_params(raw: dict) -> ExtractedBuildingParams:

@@ -9,6 +9,7 @@ import pandas as pd
 import streamlit as st
 
 from models.schemas import ConfidenceLevel, Estimate, MaterialRate, Source, WastageFactors
+from utils import units as u
 
 CONFIDENCE_COLORS = {
     ConfidenceLevel.HIGH: "#1a7f37",
@@ -31,24 +32,60 @@ def confidence_badge(confidence: ConfidenceLevel) -> str:
     )
 
 
+# Dimension-type -> (to_display, from_display, unit_label_fn, default_step)
+_DIMENSION_HANDLERS = {
+    "length": (u.length_to_display, u.length_from_display, u.length_unit_label, {"SI": 0.05, "FPS": 0.5}),
+    "thickness": (u.thickness_to_display, u.thickness_from_display, u.thickness_unit_label, {"SI": 0.005, "FPS": 0.25}),
+    "area": (u.area_to_display, u.area_from_display, u.area_unit_label, {"SI": 1.0, "FPS": 5.0}),
+}
+
+
 def render_estimate_input(
     label: str,
     estimate: Estimate,
     key: str,
-    unit: str = "",
-    step: float = 0.01,
+    dimension_type: str = "length",
+    unit_system: str = "SI",
+    step: float | None = None,
     min_value: float = 0.0,
     help_text: str | None = None,
 ) -> Estimate:
     """Render one editable numeric field with its confidence badge + note,
-    and return a (possibly updated) Estimate reflecting the user's edit.
+    converting between SI (stored internally) and the user's chosen display
+    unit system (SI or FPS), and return a (possibly updated) Estimate whose
+    `.value` is always in SI - callers never need to think about units.
+
+    dimension_type controls the conversion applied:
+      - "length"    -> m <-> ft   (spans, heights, footing/beam lengths)
+      - "thickness" -> m <-> in   (cross-sections: column/beam b&d, wall &
+                                    slab thickness)
+      - "area"      -> sqm <-> sft
+      - "count"     -> no conversion (Nos)
+      - "weight"    -> no conversion (kg)
     """
+    if dimension_type in _DIMENSION_HANDLERS:
+        to_disp, from_disp, unit_label_fn, step_map = _DIMENSION_HANDLERS[dimension_type]
+        unit_label = unit_label_fn(unit_system)
+        display_value = to_disp(estimate.value, unit_system)
+        resolved_step = step if step is not None else step_map.get(unit_system, 0.1)
+    else:
+        # "count" or "weight" - no unit conversion
+        unit_label = "nos" if dimension_type == "count" else "kg"
+        display_value = estimate.value
+        resolved_step = step if step is not None else 1.0
+
+        def to_disp(v, _s):
+            return v
+
+        def from_disp(v, _s):
+            return v
+
     col1, col2 = st.columns([3, 1])
     with col1:
-        new_value = st.number_input(
-            f"{label} ({unit})" if unit else label,
-            value=float(estimate.value),
-            step=step,
+        new_display_value = st.number_input(
+            f"{label} ({unit_label})",
+            value=float(display_value),
+            step=float(resolved_step),
             min_value=min_value,
             key=key,
             help=help_text or estimate.note,
@@ -59,8 +96,10 @@ def render_estimate_input(
     if estimate.note:
         st.caption(f"\u2139\ufe0f {estimate.note}")
 
-    if new_value != estimate.value:
-        return estimate.with_value(new_value)
+    new_si_value = from_disp(new_display_value, unit_system)
+
+    if abs(new_si_value - estimate.value) > 1e-9:
+        return estimate.with_value(new_si_value)
     return estimate
 
 
@@ -93,7 +132,11 @@ def render_wastage_editor(wastage: WastageFactors) -> WastageFactors:
 
 
 def render_rate_editor(rate_book: Dict[str, MaterialRate]) -> Dict[str, MaterialRate]:
-    st.caption("Edit unit rates below to match your local market before generating the final BOQ cost.")
+    st.caption(
+        "Rates are stored per cft / sft / kg (standard Pakistani market convention) and are "
+        "automatically converted to an equivalent per-m3/per-m2 rate in the BOQ if you selected "
+        "the SI unit system. Edit the Rate column below to match current local supplier quotes."
+    )
     df = pd.DataFrame(
         [
             {"Item Code": r.item_code, "Description": r.description, "Unit": r.unit, "Category": r.category, "Rate": r.rate}
