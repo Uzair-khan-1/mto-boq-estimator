@@ -12,7 +12,8 @@ RESPONSE_JSON_SCHEMA_DESCRIPTION = """
 Respond with ONLY a single JSON object (no markdown fences, no commentary)
 matching EXACTLY this structure. Every leaf numeric field must be an object
 with "value" (number), "confidence" ("High"|"Medium"|"Low"), and "note"
-(short string explaining how you got the value or why you defaulted it).
+(VERY SHORT - under 6 words - explaining how you got the value or why you defaulted it).
+Keep the entire JSON response compact. Do not add extra whitespace or explanation.
 
 {
   "num_floors": {"value": <int>, "confidence": "...", "note": "..."},
@@ -100,6 +101,8 @@ Rules you MUST follow:
 6. If multiple pages/views are given, cross-reference them (e.g. a plan view
    and a section view together may reveal floor height or slab thickness).
 7. Output ONLY the JSON object described. No prose before or after it.
+8. Keep every "note" field to 6 words or fewer, and "extraction_warnings" to
+   at most 3 short items. Token budget is limited - be terse everywhere.
 """
 
 
