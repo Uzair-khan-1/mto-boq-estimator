@@ -27,7 +27,13 @@ from export.excel_export import build_excel_workbook
 from export.pdf_export import build_pdf_report
 from models.schemas import ConfidenceLevel, ProjectInputs
 from mto_boq.boq_generator import boq_to_dataframe, cost_by_category, generate_boq
-from mto_boq.mto_generator import compute_reinforcement_summary, generate_mto, group_by_category, mto_to_dataframe
+from mto_boq.mto_generator import (
+    compute_procurement_totals,
+    compute_reinforcement_summary,
+    generate_mto,
+    group_by_category,
+    mto_to_dataframe,
+)
 from ui.components import confidence_badge, render_estimate_input, render_rate_editor, render_wastage_editor
 from ui.state import go_to_step, init_session_state, reset_project
 from ui import theme
@@ -495,10 +501,30 @@ def step_4():
     badge_color = "green" if summary["status"] == "OK" else "orange"
     st.markdown(f":{badge_color}[**Steel sanity check:** {summary['message']}]")
 
+    st.markdown("##### \U0001f4e6 Procurement summary")
+    st.caption(
+        "Project-wide cement/sand/aggregate totals - already priced within the composite rates below, "
+        "shown here purely as the quantities to hand to a supplier. Net theoretical figures; add your own "
+        "site wastage margin (commonly 3-5% for cement, 5-10% for sand/aggregate) before ordering."
+    )
+    totals = compute_procurement_totals(mto_items)
+    sand_qty, sand_unit = units.quantity_and_unit_for_display(totals["sand_m3"], "m3", unit_system)
+    agg_qty, agg_unit = units.quantity_and_unit_for_display(totals["aggregate_m3"], "m3", unit_system)
+    pc1, pc2, pc3 = st.columns(3)
+    pc1.metric("Cement", f"{totals['cement_bags']:,.0f} bags")
+    pc2.metric("Sand", f"{sand_qty:,.1f} {sand_unit}")
+    pc3.metric("Aggregate/Crush", f"{agg_qty:,.1f} {agg_unit}")
+
     if units.is_fps(unit_system):
         st.caption("Quantities below are shown in FPS (cft/sqft). All engineering calculations are performed internally in SI/metric units.")
 
-    df = mto_to_dataframe(mto_items, unit_system=unit_system)
+    show_procurement_rows = st.checkbox(
+        "Show cement/sand/aggregate & mortar breakdown rows in the table below",
+        value=True,
+        help="Uncheck to see just the main structural/finish items - the procurement breakdown rows are still fully counted above and in the export files either way.",
+    )
+    display_items = mto_items if show_procurement_rows else [i for i in mto_items if not i.informational]
+    df = mto_to_dataframe(display_items, unit_system=unit_system)
     st.dataframe(df, use_container_width=True, hide_index=True)
 
     st.markdown("##### Calculation breakdown / traceability")
@@ -509,6 +535,8 @@ def step_4():
                 display_qty, display_unit = units.quantity_and_unit_for_display(item.quantity, item.unit, unit_system)
                 st.markdown(f"**{item.item_code} \u2014 {item.description}**  {confidence_badge(item.confidence)}", unsafe_allow_html=True)
                 st.write(f"Quantity: **{display_qty:,.3f} {display_unit}**")
+                if item.informational:
+                    st.caption(f"\U0001f4e6 Procurement reference only - already priced under **{item.parent_item_code}** above; do not add its cost again.")
                 st.caption(f"Formula (metric): {item.formula}")
                 if item.inputs_used:
                     st.caption("Inputs used: " + ", ".join(f"{k}={v}" for k, v in item.inputs_used.items()))
