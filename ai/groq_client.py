@@ -77,6 +77,8 @@ def call_vision_model(
                 {"role": "user", "content": content},
             ],
             response_format={"type": "json_object"},
+            reasoning_effort="none",
+            reasoning_format="hidden",
         )
         return response.choices[0].message.content
     except Exception as exc:
