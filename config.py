@@ -27,20 +27,13 @@ LOGO_HORIZONTAL_ON_DARK_PATH = ASSETS_DIR / "costlens_logo_on_dark.png"
 # Brand palette - also mirrored in .streamlit/config.toml and the CSS
 # injected by ui.theme, kept here as the single source of truth for any
 # Python code that needs a hex value (e.g. chart colors).
+#
 BRAND_NAVY = "#0B1E3D"
 BRAND_NAVY_LIGHT = "#123A5A"
 BRAND_TEAL = "#0D9488"
 BRAND_TEAL_BRIGHT = "#2DD4BF"
 BRAND_GOLD = "#FBBF24"
 BRAND_BG = "#F4F7FB"
-BRAND_CARD = "#FFFFFF"
-# Body text color - a dark, readable slate used to explicitly force text
-# color everywhere (see ui/theme.py). Without an explicit color, an
-# element's text can inherit Streamlit's OWN dark-mode default (near-white)
-# even while its background stays forced to the light BRAND_BG/BRAND_CARD
-# above, producing invisible/low-contrast text - see the CSS root-variable
-# override note in ui/theme.py for the full explanation.
-BRAND_TEXT = "#1E293B"
 
 # Groq model IDs. Kept in one place so they're easy to bump as Groq
 # updates its free-tier vision-capable model lineup.
