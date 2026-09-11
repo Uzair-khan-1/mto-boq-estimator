@@ -15,16 +15,16 @@ APP_VERSION = "0.1.0-mvp"
 
 # Groq model IDs. Kept in one place so they're easy to bump as Groq
 # updates its free-tier vision-capable model lineup.
-GROQ_VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
-GROQ_TEXT_MODEL = "llama-3.3-70b-versatile"
+GROQ_VISION_MODEL = "qwen/qwen3.6-27b"
+GROQ_TEXT_MODEL = "openai/gpt-oss-120b"
 
 # Max dimension (px) we resize any page/image to before sending to Groq.
 # Keeps base64 payloads small and inference fast/cheap.
 MAX_IMAGE_DIMENSION = 1600
 
 # Default currency for the rate book / cost estimate.
-DEFAULT_CURRENCY = "PKR"
-DEFAULT_CURRENCY_SYMBOL = "Rs. "
+DEFAULT_CURRENCY = "INR"
+DEFAULT_CURRENCY_SYMBOL = "\u20b9"
 
 # Supported upload types
 SUPPORTED_FILE_TYPES = ["pdf", "png", "jpg", "jpeg"]

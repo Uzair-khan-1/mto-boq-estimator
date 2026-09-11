@@ -55,7 +55,7 @@ def call_vision_model(
     images: List[Image.Image],
     model: str = config.GROQ_VISION_MODEL,
     temperature: float = 0.1,
-    max_tokens: int = 3000,
+    max_tokens: int = 900,
 ) -> str:
     """Send text + one or more images to a Groq vision-capable model and
     return the raw text response (expected to be a JSON string, validated
@@ -77,6 +77,8 @@ def call_vision_model(
                 {"role": "user", "content": content},
             ],
             response_format={"type": "json_object"},
+            reasoning_effort="none",
+            reasoning_format="hidden",
         )
         return response.choices[0].message.content
     except Exception as exc:

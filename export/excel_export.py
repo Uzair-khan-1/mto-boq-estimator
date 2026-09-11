@@ -19,8 +19,6 @@ from openpyxl.utils import get_column_letter
 
 import config
 from models.schemas import BOQLineItem, CostSummary, ExtractedBuildingParams, ProjectInputs, QuantityLineItem
-from mto_boq.mto_generator import get_display_quantity_unit
-from utils.units import SI
 
 HEADER_FILL = PatternFill(start_color="1F6FEB", end_color="1F6FEB", fill_type="solid")
 HEADER_FONT = Font(color="FFFFFF", bold=True)
@@ -58,7 +56,6 @@ def _write_cover_sheet(wb: Workbook, project_inputs: ProjectInputs, cost_summary
         ("Project Name", project_inputs.project_name),
         ("Client", project_inputs.client_name),
         ("Location", project_inputs.location),
-        ("Unit System", "FPS (feet/inches, sft/cft)" if getattr(project_inputs, "unit_system", "SI") == "FPS" else "SI (metric)"),
         ("Soil Type", project_inputs.soil_type),
         ("Concrete Grade (Footing/Column/Beam/Slab)", f"{project_inputs.concrete_grade_footing} / {project_inputs.concrete_grade_column} / {project_inputs.concrete_grade_beam} / {project_inputs.concrete_grade_slab}"),
         ("Steel Grade", project_inputs.steel_grade),
@@ -84,14 +81,13 @@ def _write_cover_sheet(wb: Workbook, project_inputs: ProjectInputs, cost_summary
     _autofit(ws, [38, 30, 14, 14, 14, 14])
 
 
-def _write_mto_sheet(wb: Workbook, mto_items: List[QuantityLineItem], unit_system: str = SI):
+def _write_mto_sheet(wb: Workbook, mto_items: List[QuantityLineItem]):
     ws = wb.create_sheet("MTO")
     headers = ["Item Code", "Category", "Description", "Unit", "Quantity", "Confidence", "Formula", "Key Inputs Used", "Assumptions"]
     ws.append(headers)
     _style_header_row(ws, 1, len(headers))
 
     for item in mto_items:
-        disp_qty, disp_unit = get_display_quantity_unit(item, unit_system)
         inputs_str = "; ".join(f"{k}={v}" for k, v in item.inputs_used.items())
         assumptions_str = " | ".join(item.assumptions)
         ws.append(
@@ -99,8 +95,8 @@ def _write_mto_sheet(wb: Workbook, mto_items: List[QuantityLineItem], unit_syste
                 item.item_code,
                 item.category,
                 item.description,
-                disp_unit,
-                round(disp_qty, 3),
+                item.unit,
+                item.quantity,
                 item.confidence.value,
                 item.formula,
                 inputs_str,
@@ -182,10 +178,9 @@ def build_excel_workbook(
     boq_items: List[BOQLineItem],
     cost_summary: CostSummary,
 ) -> bytes:
-    unit_system = getattr(project_inputs, "unit_system", SI)
     wb = Workbook()
     _write_cover_sheet(wb, project_inputs, cost_summary)
-    _write_mto_sheet(wb, mto_items, unit_system)
+    _write_mto_sheet(wb, mto_items)
     _write_boq_sheet(wb, boq_items, config.DEFAULT_CURRENCY_SYMBOL)
     _write_assumptions_sheet(wb, params)
 

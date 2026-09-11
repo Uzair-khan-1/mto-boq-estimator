@@ -1,59 +1,60 @@
 """
 Prompt templates for Groq drawing interpretation.
 
-The JSON schema requested here intentionally mirrors
-`models.schemas.ExtractedBuildingParams` field-for-field (see
-ai/extraction.py for the mapping) so parsing is a straight validation, not
-a translation layer full of edge cases.
+Uses a COMPACT JSON schema (2-element [value, confidence_code] arrays
+instead of verbose {value, confidence, note} objects) to stay well within
+free-tier output token limits, since the model would otherwise get cut off
+mid-response on a schema with ~23 fields each carrying a written note.
 """
 from __future__ import annotations
 
 RESPONSE_JSON_SCHEMA_DESCRIPTION = """
-Respond with ONLY a single JSON object (no markdown fences, no commentary)
-matching EXACTLY this structure. Every leaf numeric field must be an object
-with "value" (number), "confidence" ("High"|"Medium"|"Low"), and "note"
-(short string explaining how you got the value or why you defaulted it).
+Respond with ONLY a single compact JSON object (no markdown fences, no
+commentary, no extra whitespace/indentation). Every leaf numeric field must
+be a 2-element array: [value, confidence_code] where confidence_code is
+exactly one letter: "H" (High), "M" (Medium), or "L" (Low). Do NOT add a
+"note" field per value - keep it to just [value, code].
 
 {
-  "num_floors": {"value": <int>, "confidence": "...", "note": "..."},
-  "plinth_area_per_floor_sqm": {"value": <number>, "confidence": "...", "note": "..."},
+  "num_floors": [<int>, "H|M|L"],
+  "plinth_area_per_floor_sqm": [<number>, "H|M|L"],
   "footings": {
     "footing_type": "isolated" | "strip" | "raft" | "combined",
-    "count": {"value": <int>, "confidence": "...", "note": "..."},
-    "length_m": {"value": <number>, "confidence": "...", "note": "..."},
-    "width_m": {"value": <number>, "confidence": "...", "note": "..."},
-    "depth_m": {"value": <number>, "confidence": "...", "note": "..."}
+    "count": [<int>, "H|M|L"],
+    "length_m": [<number>, "H|M|L"],
+    "width_m": [<number>, "H|M|L"],
+    "depth_m": [<number>, "H|M|L"]
   },
   "columns": {
-    "count": {"value": <int>, "confidence": "...", "note": "..."},
-    "width_m": {"value": <number>, "confidence": "...", "note": "..."},
-    "depth_m": {"value": <number>, "confidence": "...", "note": "..."},
-    "height_per_floor_m": {"value": <number>, "confidence": "...", "note": "..."}
+    "count": [<int>, "H|M|L"],
+    "width_m": [<number>, "H|M|L"],
+    "depth_m": [<number>, "H|M|L"],
+    "height_per_floor_m": [<number>, "H|M|L"]
   },
   "beams": {
-    "count": {"value": <int>, "confidence": "...", "note": "..."},
-    "avg_length_m": {"value": <number>, "confidence": "...", "note": "..."},
-    "width_m": {"value": <number>, "confidence": "...", "note": "..."},
-    "depth_m": {"value": <number>, "confidence": "...", "note": "..."}
+    "count": [<int>, "H|M|L"],
+    "avg_length_m": [<number>, "H|M|L"],
+    "width_m": [<number>, "H|M|L"],
+    "depth_m": [<number>, "H|M|L"]
   },
   "slabs": {
-    "area_per_floor_sqm": {"value": <number>, "confidence": "...", "note": "..."},
-    "thickness_m": {"value": <number>, "confidence": "...", "note": "..."}
+    "area_per_floor_sqm": [<number>, "H|M|L"],
+    "thickness_m": [<number>, "H|M|L"]
   },
   "walls": {
-    "total_length_per_floor_m": {"value": <number>, "confidence": "...", "note": "..."},
-    "height_m": {"value": <number>, "confidence": "...", "note": "..."},
-    "thickness_m": {"value": <number>, "confidence": "...", "note": "..."},
-    "wall_material": "<free text guess, e.g. 'Burnt clay brick (modular 190x90x90mm)'>"
+    "total_length_per_floor_m": [<number>, "H|M|L"],
+    "height_m": [<number>, "H|M|L"],
+    "thickness_m": [<number>, "H|M|L"],
+    "wall_material": "<short free text guess>"
   },
   "openings": {
-    "door_count_per_floor": {"value": <int>, "confidence": "...", "note": "..."},
-    "avg_door_area_sqm": {"value": <number>, "confidence": "...", "note": "..."},
-    "window_count_per_floor": {"value": <int>, "confidence": "...", "note": "..."},
-    "avg_window_area_sqm": {"value": <number>, "confidence": "...", "note": "..."}
+    "door_count_per_floor": [<int>, "H|M|L"],
+    "avg_door_area_sqm": [<number>, "H|M|L"],
+    "window_count_per_floor": [<int>, "H|M|L"],
+    "avg_window_area_sqm": [<number>, "H|M|L"]
   },
-  "overall_notes": "<1-3 sentence summary of what you saw and how reliable the drawing quality/scale info was>",
-  "extraction_warnings": ["<short strings flagging anything unreadable, missing scale, ambiguous, or defaulted>"]
+  "overall_notes": "<1 short sentence>",
+  "extraction_warnings": ["<short phrase>", "<short phrase>"]
 }
 """
 
@@ -68,38 +69,36 @@ estimates. Another deterministic system will do all arithmetic from the raw
 parameters you report. Do not compute volumes, areas, or totals yourself -
 just report dimensions and counts.
 
+CRITICAL: keep your response as SHORT and COMPACT as possible. You have a very
+limited output token budget. Use the compact [value, "H|M|L"] array format
+exactly as specified - never expand it into an object with extra keys, never
+add explanatory text per field, never use markdown formatting or code fences.
+"overall_notes" must be one short sentence. "extraction_warnings" must have
+at most 3 items, each under 8 words.
+
 Rules you MUST follow:
 1. If a dimension or count is clearly labelled/dimensioned on the drawing or
-   present in the OCR text, use it and mark confidence "High".
-2. If you can reasonably infer a value from partial information (e.g. a grid
-   spacing implies typical column spacing, or a labeled room area implies
-   plinth area), use it and mark confidence "Medium".
+   present in the OCR text, use it and mark confidence "H".
+2. If you can reasonably infer a value from partial information, use it and
+   mark confidence "M".
 3. If information is missing/illegible/not shown at all, use a sensible
-   standard residential-construction default value and mark confidence "Low".
+   standard residential-construction default value and mark confidence "L".
    NEVER leave a field blank or null - always provide your best numeric
-   estimate with an honest confidence level.
+   estimate with an honest confidence code.
 4. Typical residential defaults you may fall back on when information is
    missing (India-typical small RCC residential building):
    - Isolated footing: 1.2m x 1.2m x 0.9m, count = number of column
-     intersections you can identify (or estimate from plan perimeter/area
-     if columns aren't visibly marked)
+     intersections you can identify (or estimate from plan perimeter/area)
    - Column: 230mm x 450mm, height per floor 3.0m
-   - Beam: 230mm x 450mm, average length = an estimate from typical room
-     spans visible in the plan
-   - Slab: thickness 125mm, area = plinth/built-up area you can measure or
-     estimate from the plan
-   - Wall: 230mm thick brick masonry, height = floor-to-floor height,
-     total wall length estimated from the visible plan perimeter + internal
-     partitions
-   - Openings: 2-4 doors and 3-6 windows per floor for a small residential
-     unit, door ~0.9m x 2.1m, window ~1.2m x 1.2m
+   - Beam: 230mm x 450mm, average length estimated from typical room spans
+   - Slab: thickness 125mm, area = plinth/built-up area
+   - Wall: 230mm thick brick masonry, height = floor-to-floor height
+   - Openings: 2-4 doors and 3-6 windows per floor, door ~0.9m x 2.1m,
+     window ~1.2m x 1.2m
 5. Always populate "extraction_warnings" with anything you had to default or
-   could not confidently read (e.g. "No scale bar found - dimensions
-   estimated from typical room proportions", "Column schedule not visible -
-   assumed standard 230x450mm").
-6. If multiple pages/views are given, cross-reference them (e.g. a plan view
-   and a section view together may reveal floor height or slab thickness).
-7. Output ONLY the JSON object described. No prose before or after it.
+   could not confidently read - but keep each entry very short.
+6. If multiple pages/views are given, cross-reference them.
+7. Output ONLY the compact JSON object described. No prose before or after it.
 """
 
 

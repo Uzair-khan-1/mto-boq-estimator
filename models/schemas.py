@@ -117,7 +117,6 @@ class ProjectInputs(BaseModel):
     project_name: str = "Untitled Project"
     client_name: str = ""
     location: str = ""
-    unit_system: str = "FPS"  # "FPS" (feet/inches/sft/cft - Pakistani practice) or "SI" (metric)
     soil_type: str = "Ordinary soil"  # Soft/Ordinary/Hard/Murrum/Rock
     concrete_grade_footing: str = "M20"
     concrete_grade_column: str = "M20"
@@ -136,7 +135,7 @@ class ProjectInputs(BaseModel):
     include_dpc: bool = True
     include_anti_termite: bool = True
     contingency_pct: float = 5.0
-    currency: str = "PKR"
+    currency: str = "INR"
 
 
 class WastageFactors(BaseModel):
@@ -199,7 +198,7 @@ class CostSummary(BaseModel):
     contingency_pct: float
     contingency_amount: float
     grand_total: float
-    currency: str = "PKR"
+    currency: str = "INR"
 
 
 class ProjectResult(BaseModel):

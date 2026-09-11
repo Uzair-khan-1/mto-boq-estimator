@@ -1,20 +1,10 @@
-streamlit==1.38.0
-groq==0.11.0
-pymupdf==1.24.10
-opencv-python-headless==4.10.0.84
-pandas==2.2.2
-pydantic==2.9.2
-openpyxl==3.1.5
-reportlab==4.2.5
-Pillow==10.4.0
-numpy==1.26.4
-
-# --- Optional: OCR support -------------------------------------------------
-# EasyOCR pulls in PyTorch (~500MB+) which is heavy for Streamlit Community
-# Cloud's free tier (1GB RAM) and can cause slow cold-starts or
-# out-of-memory deploy failures. The app runs perfectly well WITHOUT it -
-# ocr_engine.py fails soft and the AI relies on vision-only interpretation.
-# Uncomment the line below only if you have a larger deployment target
-# (paid tier / self-hosted / more RAM) and want the extra OCR-text hint
-# signal feeding into the Groq prompt.
-# easyocr==1.7.2
+streamlit
+groq
+pymupdf
+opencv-python-headless
+pandas
+pydantic
+openpyxl
+reportlab
+Pillow
+numpy

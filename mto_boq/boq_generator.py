@@ -1,17 +1,14 @@
 """
 BOQ (Bill of Quantities) generation.
 
-Takes the deterministic MTO quantities (always computed in SI internally -
-see engineering/calculations.py) and applies:
+Takes the deterministic MTO quantities and applies:
 1. Category-specific wastage/allowance percentages (editable)
-2. Conversion to the user's selected display unit system (SI or FPS)
-3. Unit rates matched to that same unit system (editable rate book,
-   stored FPS-native and auto-converted for SI - see mto_boq/rates.py)
-4. A "Preliminaries & rough MEP allowance" lump-sum line, because a
+2. Unit rates (editable rate book)
+3. A "Preliminaries & rough MEP allowance" lump-sum line, because a
    residential estimate that silently omits site overheads, plumbing, and
    electrical rough-in would understate cost significantly - the MVP does
    not compute MEP quantities, so this is clearly flagged as a placeholder.
-5. Overall contingency percentage -> grand total
+4. Overall contingency percentage -> grand total
 
 No AI involvement here either - pure arithmetic over user-approved inputs.
 """
@@ -30,8 +27,6 @@ from models.schemas import (
     QuantityLineItem,
     WastageFactors,
 )
-from mto_boq.rates import rate_for_unit_system
-from utils.units import SI, convert_quantity_unit
 
 # Maps a quantity item's category to the relevant wastage-factor field name
 CATEGORY_TO_WASTAGE_FIELD = {
@@ -70,38 +65,31 @@ def generate_boq(
     include_preliminaries: bool = True,
     preliminaries_pct: float = PRELIMINARIES_PCT_OF_CIVIL_SUBTOTAL,
 ) -> tuple[List[BOQLineItem], CostSummary]:
-    unit_system = getattr(project_inputs, "unit_system", SI)
     boq_items: List[BOQLineItem] = []
 
     for item in mto_items:
         wastage_pct = _wastage_for(item, wastage)
-
-        # Convert the item's SI quantity (both before and after wastage) to
-        # the user's chosen display unit system.
-        disp_qty, disp_unit = convert_quantity_unit(item.quantity, item.unit, unit_system)
-        qty_si_with_wastage = item.quantity * (1 + wastage_pct / 100.0)
-        disp_qty_with_wastage, _ = convert_quantity_unit(qty_si_with_wastage, item.unit, unit_system)
+        qty_with_wastage = item.quantity * (1 + wastage_pct / 100.0)
 
         rate_row = rate_book.get(item.item_code)
         if rate_row is None:
             rate = 0.0
             remarks = "No rate found in rate book - please add a rate."
         else:
-            adjusted_rate = rate_for_unit_system(rate_row, unit_system)
-            rate = adjusted_rate.rate
+            rate = rate_row.rate
             remarks = ""
 
-        amount = disp_qty_with_wastage * rate
+        amount = qty_with_wastage * rate
         boq_items.append(
             BOQLineItem(
                 item_code=item.item_code,
                 description=item.description,
                 category=item.category,
-                unit=disp_unit,
-                quantity=round(disp_qty, 3),
+                unit=item.unit,
+                quantity=round(item.quantity, 3),
                 wastage_pct=wastage_pct,
-                quantity_with_wastage=round(disp_qty_with_wastage, 3),
-                rate=round(rate, 2),
+                quantity_with_wastage=round(qty_with_wastage, 3),
+                rate=rate,
                 amount=round(amount, 2),
                 confidence=item.confidence,
                 remarks=remarks,
