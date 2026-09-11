@@ -115,7 +115,21 @@ def draw_icon(final_size: int = 512, supersample: int = 3) -> Image.Image:
     return canvas.resize((final_size, final_size), Image.LANCZOS)
 
 
-def draw_horizontal_lockup(icon: Image.Image, final_w: int = 1200, final_h: int = 320, supersample: int = 2) -> Image.Image:
+def draw_horizontal_lockup(
+    icon: Image.Image,
+    final_w: int = 1200,
+    final_h: int = 320,
+    supersample: int = 2,
+    wordmark_color=INK,
+    tagline_color=(45, 90, 110),
+) -> Image.Image:
+    """Icon + "CostLens" wordmark + tagline, on a transparent background.
+
+    `wordmark_color`/`tagline_color` default to dark navy/muted teal, which
+    reads well on a LIGHT background. Pass light colors (see
+    `draw_horizontal_lockup_on_dark`) for use on a dark background (e.g.
+    the app's navy sidebar) - a transparent PNG only controls its own
+    pixels, not what's behind it, so the same file can't work on both."""
     W, H = final_w * supersample, final_h * supersample
     canvas = Image.new("RGBA", (W, H), (0, 0, 0, 0))
 
@@ -129,13 +143,14 @@ def draw_horizontal_lockup(icon: Image.Image, final_w: int = 1200, final_h: int 
     tagline_font = _font("Outfit-Regular.ttf", int(H * 0.145))
 
     wm_y = int(H * 0.14)
-    d.text((text_x, wm_y), "CostLens", font=wordmark_font, fill=INK)
+    d.text((text_x, wm_y), "CostLens", font=wordmark_font, fill=wordmark_color)
 
     tagline = "FROM  PLANS  TO  PRICE"
     tag_y = int(H * 0.70)
-    d.text((text_x, tag_y), tagline, font=tagline_font, fill=(45, 90, 110))
+    d.text((text_x, tag_y), tagline, font=tagline_font, fill=tagline_color)
 
-    # trim transparent right margin
+    # trim transparent right margin (alpha-based, so text color doesn't
+    # affect this - the whole point is to see through in either theme)
     bbox = canvas.getbbox()
     if bbox:
         canvas = canvas.crop((0, 0, min(W, bbox[2] + int(H * 0.12)), H))
@@ -145,6 +160,13 @@ def draw_horizontal_lockup(icon: Image.Image, final_w: int = 1200, final_h: int 
     return canvas.resize((out_w, out_h), Image.LANCZOS)
 
 
+def draw_horizontal_lockup_on_dark(icon: Image.Image, **kwargs) -> Image.Image:
+    """Same lockup, recolored for use on a dark/navy background (e.g.
+    st.logo() in the app's navy sidebar) - white wordmark, bright-teal
+    tagline instead of navy-on-navy (which would be invisible)."""
+    return draw_horizontal_lockup(icon, wordmark_color=WHITE, tagline_color=TEAL_LIGHT, **kwargs)
+
+
 if __name__ == "__main__":
     icon = draw_icon()
     icon.save(os.path.join(HERE, "costlens_icon.png"))
@@ -152,5 +174,9 @@ if __name__ == "__main__":
     lockup = draw_horizontal_lockup(icon)
     lockup.save(os.path.join(HERE, "costlens_logo.png"))
 
+    lockup_dark = draw_horizontal_lockup_on_dark(icon)
+    lockup_dark.save(os.path.join(HERE, "costlens_logo_on_dark.png"))
+
     print("Wrote costlens_icon.png", icon.size)
     print("Wrote costlens_logo.png", lockup.size)
+    print("Wrote costlens_logo_on_dark.png", lockup_dark.size)

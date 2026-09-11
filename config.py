@@ -20,6 +20,9 @@ APP_VERSION = "0.3.0-mvp"
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 LOGO_ICON_PATH = ASSETS_DIR / "costlens_icon.png"
 LOGO_HORIZONTAL_PATH = ASSETS_DIR / "costlens_logo.png"
+# White wordmark variant for use on the app's dark-navy sidebar - the
+# regular lockup above has navy text and would be invisible there.
+LOGO_HORIZONTAL_ON_DARK_PATH = ASSETS_DIR / "costlens_logo_on_dark.png"
 
 # Brand palette - also mirrored in .streamlit/config.toml and the CSS
 # injected by ui.theme, kept here as the single source of truth for any

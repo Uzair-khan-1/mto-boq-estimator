@@ -120,6 +120,28 @@ h1, h2, h3 {{ color: {config.BRAND_NAVY}; font-weight: 700; }}
 }}
 
 /* ---------------------------------------------------------------- *
+ * Sidebar logo (st.logo) - Streamlit renders this quite small by
+ * default (~24-32px tall) regardless of the source image's actual
+ * resolution. Force it larger here so it reads clearly; `size="large"`
+ * is passed in app.py too for versions that support that parameter,
+ * but this CSS is what actually guarantees the size across versions.
+ * ---------------------------------------------------------------- */
+[data-testid="stSidebarHeader"] {{
+    padding-top: 1rem !important;
+    padding-bottom: 0.75rem !important;
+    align-items: center !important;
+}}
+[data-testid="stSidebarHeader"] img,
+[data-testid="stLogo"],
+[data-testid="stLogo"] img,
+.stLogo,
+.stLogo img {{
+    height: 3.2rem !important;
+    max-height: none !important;
+    width: auto !important;
+}}
+
+/* ---------------------------------------------------------------- *
  * Sidebar
  * ---------------------------------------------------------------- */
 [data-testid="stSidebar"] {{

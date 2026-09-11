@@ -18,6 +18,7 @@ from typing import Dict, List
 
 import pandas as pd
 
+from engineering.rules import FINISH_LEVEL_RATE_MULTIPLIERS
 from models.schemas import (
     BOQLineItem,
     ConfidenceLevel,
@@ -58,6 +59,14 @@ def _wastage_for(item: QuantityLineItem, wastage: WastageFactors) -> float:
     return getattr(wastage, field, wastage.misc_pct)
 
 
+def _finish_level_multiplier(category: str, finish_level: str) -> float:
+    """Only Flooring/Painting/Plaster categories are finish-grade-sensitive
+    (see engineering.rules.FINISH_LEVEL_RATE_MULTIPLIERS) - every other
+    category (structural concrete, steel, excavation, etc.) is unaffected
+    by Finish Level and always returns 1.0 (no-op)."""
+    return FINISH_LEVEL_RATE_MULTIPLIERS.get(finish_level, {}).get(category, 1.0)
+
+
 def generate_boq(
     mto_items: List[QuantityLineItem],
     rate_book: Dict[str, MaterialRate],
@@ -79,6 +88,12 @@ def generate_boq(
         else:
             rate = rate_row.rate
             remarks = ""
+
+        finish_mult = _finish_level_multiplier(item.category, project_inputs.finish_level)
+        if finish_mult != 1.0:
+            rate = rate * finish_mult
+            note = f"Rate x{finish_mult:.2f} for '{project_inputs.finish_level}' finish level."
+            remarks = f"{remarks} {note}".strip()
 
         amount = qty_with_wastage * rate
         boq_items.append(

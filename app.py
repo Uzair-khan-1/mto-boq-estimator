@@ -39,8 +39,21 @@ init_session_state()
 theme.inject_theme()
 
 if hasattr(st, "logo"):
+    # st.logo() renders into the sidebar header, which this app themes as
+    # dark navy - so it needs the white-text lockup (LOGO_HORIZONTAL_ON_DARK_PATH),
+    # not the navy-text one used on light backgrounds elsewhere (the hero
+    # banner draws its own text via CSS instead of a baked-in PNG, so it's
+    # unaffected). `size="large"` is only available on newer Streamlit
+    # (>=1.41) - fall back to the call without it on older versions. Either
+    # way, ui.theme's CSS also force-enlarges the rendered image (st.logo
+    # renders quite small by default), so sizing works regardless of version.
     try:
-        st.logo(str(config.LOGO_HORIZONTAL_PATH), icon_image=str(config.LOGO_ICON_PATH))
+        st.logo(str(config.LOGO_HORIZONTAL_ON_DARK_PATH), icon_image=str(config.LOGO_ICON_PATH), size="large")
+    except TypeError:
+        try:
+            st.logo(str(config.LOGO_HORIZONTAL_ON_DARK_PATH), icon_image=str(config.LOGO_ICON_PATH))
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -98,61 +111,76 @@ def step_1():
         key="unit_system_selector",
     )
 
-    with st.form("project_setup_form"):
-        c1, c2 = st.columns(2)
-        with c1:
-            project_name = st.text_input("Project Name", pi.project_name)
-            client_name = st.text_input("Client Name (optional)", pi.client_name)
-            location = st.text_input("Location / City", pi.location)
-            soil_type = st.selectbox(
-                "Soil Type", list(rules.SOIL_SIDE_SLOPE_FACTOR.keys()),
-                index=list(rules.SOIL_SIDE_SLOPE_FACTOR.keys()).index(pi.soil_type) if pi.soil_type in rules.SOIL_SIDE_SLOPE_FACTOR else 1,
-            )
-            finish_level = st.selectbox("Finish Level", ["Basic", "Standard", "Premium"], index=["Basic", "Standard", "Premium"].index(pi.finish_level))
-        with c2:
-            grade_unit_key = units.FPS if unit_system == units.FPS else units.SI
-            concrete_grade = st.selectbox(
-                "Concrete Grade (structural members)",
-                rules.CONCRETE_GRADE_OPTIONS[grade_unit_key],
-                index=rules.CONCRETE_GRADE_DEFAULT_INDEX,
-            )
-            pcc_grade = st.selectbox(
-                "PCC Grade",
-                rules.PCC_GRADE_OPTIONS[grade_unit_key],
-                index=rules.PCC_GRADE_DEFAULT_INDEX,
-            )
-            steel_grade = st.selectbox(
-                "Steel Grade",
-                rules.STEEL_GRADE_OPTIONS[grade_unit_key],
-                index=rules.STEEL_GRADE_DEFAULT_INDEX,
-            )
-            wall_material = st.selectbox(
-                "Wall Material",
-                list(rules.MASONRY_UNIT_SIZES_M.keys()),
-                format_func=lambda v: units.relabel_wall_material(v, unit_system),
-            )
-            wall_thickness_mm = st.selectbox(
-                "Wall Thickness",
-                [100, 115, 150, 200, 230],
-                index=4,
-                format_func=lambda mm: f'{mm / 25.4:.1f}" ({mm} mm)' if unit_system == units.FPS else f"{mm} mm",
-            )
+    # No st.form() here on purpose: a form batches every widget inside it
+    # and only reruns on submit, which is exactly what breaks per-file
+    # drawing tags (see below) - and the user also wants the Continue
+    # button to visually sit AFTER the upload section, so the whole step
+    # is simplest as one flat sequence of plain widgets with one button
+    # at the very end. Streamlit reruns the whole script on every widget
+    # interaction regardless of whether a form is used, so nothing here
+    # loses functionality by not being wrapped in a form.
+    c1, c2 = st.columns(2)
+    with c1:
+        project_name = st.text_input("Project Name", pi.project_name)
+        client_name = st.text_input("Client Name (optional)", pi.client_name)
+        location = st.text_input("Location / City", pi.location)
+        soil_type = st.selectbox(
+            "Soil Type", list(rules.SOIL_SIDE_SLOPE_FACTOR.keys()),
+            index=list(rules.SOIL_SIDE_SLOPE_FACTOR.keys()).index(pi.soil_type) if pi.soil_type in rules.SOIL_SIDE_SLOPE_FACTOR else 1,
+        )
+        finish_level = st.selectbox(
+            "Finish Level",
+            ["Basic", "Standard", "Premium"],
+            index=["Basic", "Standard", "Premium"].index(pi.finish_level),
+            help=(
+                "Controls the quality/cost grade of Flooring, Painting, and Plaster only - it never "
+                "changes any quantity (the same area still gets floored/painted/plastered). Basic = "
+                "economy ceramic tile, distemper, single-coat plaster. Standard = mid-range vitrified "
+                "tile, plastic emulsion, smooth double-coat plaster (the rate book's default pricing). "
+                "Premium = imported porcelain/marble, weathershield/texture paint, putty-finished "
+                "plaster. Adjusts the relevant BOQ rates automatically in Step 5 - see engineering/rules.py "
+                "FINISH_LEVEL_RATE_MULTIPLIERS for the researched Pakistani market multipliers used."
+            ),
+        )
+    with c2:
+        grade_unit_key = units.FPS if unit_system == units.FPS else units.SI
+        concrete_grade = st.selectbox(
+            "Concrete Grade (structural members)",
+            rules.CONCRETE_GRADE_OPTIONS[grade_unit_key],
+            index=rules.CONCRETE_GRADE_DEFAULT_INDEX,
+        )
+        pcc_grade = st.selectbox(
+            "PCC Grade",
+            rules.PCC_GRADE_OPTIONS[grade_unit_key],
+            index=rules.PCC_GRADE_DEFAULT_INDEX,
+        )
+        steel_grade = st.selectbox(
+            "Steel Grade",
+            rules.STEEL_GRADE_OPTIONS[grade_unit_key],
+            index=rules.STEEL_GRADE_DEFAULT_INDEX,
+        )
+        wall_material = st.selectbox(
+            "Wall Material",
+            list(rules.MASONRY_UNIT_SIZES_M.keys()),
+            format_func=lambda v: units.relabel_wall_material(v, unit_system),
+        )
+        wall_thickness_mm = st.selectbox(
+            "Wall Thickness",
+            [100, 115, 150, 200, 230],
+            index=4,
+            format_func=lambda mm: f'{mm / 25.4:.1f}" ({mm} mm)' if unit_system == units.FPS else f"{mm} mm",
+        )
 
-        st.markdown("##### Finishes & scope toggles")
-        t1, t2, t3, t4, t5 = st.columns(5)
-        include_flooring = t1.checkbox("Flooring", value=pi.include_flooring)
-        include_waterproofing = t2.checkbox("Waterproofing", value=pi.include_waterproofing)
-        include_painting = t3.checkbox("Painting", value=pi.include_painting)
-        include_dpc = t4.checkbox("DPC", value=pi.include_dpc)
-        include_anti_termite = t5.checkbox("Anti-termite", value=pi.include_anti_termite)
+    st.markdown("##### Finishes & scope toggles")
+    t1, t2, t3, t4, t5 = st.columns(5)
+    include_flooring = t1.checkbox("Flooring", value=pi.include_flooring)
+    include_waterproofing = t2.checkbox("Waterproofing", value=pi.include_waterproofing)
+    include_painting = t3.checkbox("Painting", value=pi.include_painting)
+    include_dpc = t4.checkbox("DPC", value=pi.include_dpc)
+    include_anti_termite = t5.checkbox("Anti-termite", value=pi.include_anti_termite)
 
-        contingency_pct = st.slider("Contingency % (on total cost)", 0.0, 20.0, pi.contingency_pct, 0.5)
+    contingency_pct = st.slider("Contingency % (on total cost)", 0.0, 20.0, pi.contingency_pct, 0.5)
 
-        submitted = st.form_submit_button("Continue to AI Analysis \u2192", use_container_width=True, type="primary")
-
-    # Upload lives OUTSIDE the form so each file's view-type tag renders
-    # immediately (a form only reruns the script on submit, which would
-    # make per-file tagging appear a step late).
     st.markdown("##### Drawing Upload")
     st.caption(
         f"Upload up to {config.MAX_DRAWING_FILES} files - e.g. separate Plan, Elevation, and Section drawings. "
@@ -182,6 +210,8 @@ def step_1():
                 label_visibility="collapsed",
             )
             uploaded_files_with_tags.append({"name": f.name, "bytes": f.getvalue(), "view_tag": view_tag})
+
+    submitted = st.button("Continue to AI Analysis →", use_container_width=True, type="primary")
 
     if submitted:
         st.session_state["project_inputs"] = ProjectInputs(
@@ -504,6 +534,12 @@ def step_5():
     st.header("Step 5 \u00b7 BOQ, Cost Estimate & Export")
 
     pi = st.session_state["project_inputs"]
+
+    st.caption(
+        f"Finish Level: **{pi.finish_level}** (set in Step 1) - Flooring, Painting, and Plaster rates below "
+        "are automatically scaled for this grade; every other rate is unaffected. Change it in Step 1 and "
+        "regenerate the BOQ to compare tiers."
+    )
 
     with st.expander("Wastage / allowance factors", expanded=False):
         st.session_state["wastage_factors"] = render_wastage_editor(st.session_state["wastage_factors"])

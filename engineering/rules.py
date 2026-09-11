@@ -119,3 +119,39 @@ DPC_THICKNESS_M = 0.025  # 25 mm
 DEFAULT_FLOOR_TO_FLOOR_HEIGHT_M = 3.0
 DEFAULT_FOOTING_DEPTH_M = 1.2
 DEFAULT_PLINTH_HEIGHT_M = 0.6
+
+# --------------------------------------------------------------------------
+# Finish Level -> BOQ rate multipliers
+# --------------------------------------------------------------------------
+# "Finish Level" (Basic / Standard / Premium, set in Step 1) never changes a
+# quantity - the same floor area still gets floored, the same wall area
+# still gets plastered/painted. What it changes is the MATERIAL GRADE used
+# to cover that area, which the BOQ generator applies as a rate multiplier
+# on top of the rate-book's Flooring/Painting/Plaster rates (see
+# mto_boq/boq_generator.py:generate_boq). The rate book's own default rates
+# (data/material_rates.json) represent the "Standard" tier, so Standard is
+# always a 1.00x no-op.
+#
+# Multipliers are derived from researched September-2026 Pakistani market
+# price spreads (material + labour, PKR/sqft, converted to the ratio
+# between tiers so they're independent of any single rate-book edit):
+#   - Flooring: economy ceramic tile (~PKR 120-450/sqft) vs mid-range
+#     vitrified/porcelain (~PKR 350-1,000+/sqft) vs premium imported
+#     porcelain/marble (~PKR 800-2,500+/sqft installed).
+#   - Painting: budget distemper (~PKR 40-90/sqft applied) vs mid-range
+#     plastic emulsion (~PKR 90-160/sqft applied) vs premium weathershield/
+#     texture finishes (~PKR 160-250+/sqft applied).
+#   - Plaster: single-coat rendering (~PKR 64-92/sqft) vs smooth
+#     double-coat finish-ready plaster (~PKR 86-125/sqft, the rate book's
+#     "Standard") vs a premium/waterproof + wall-putty finish (~PKR
+#     100-145+/sqft, plus an allowance for putty/corner-beading work not
+#     separately broken out in these sources).
+# These are indicative MVP-level multipliers, not a substitute for actual
+# material-brand quotations - like every other default in this app, they
+# are meant to get a preliminary estimate "in the right ballpark," and the
+# rate book itself remains fully editable in Step 5.
+FINISH_LEVEL_RATE_MULTIPLIERS = {
+    "Basic": {"Flooring": 0.65, "Painting": 0.55, "Plaster": 0.85},
+    "Standard": {"Flooring": 1.00, "Painting": 1.00, "Plaster": 1.00},
+    "Premium": {"Flooring": 1.85, "Painting": 1.65, "Plaster": 1.20},
+}

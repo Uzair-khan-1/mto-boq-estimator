@@ -138,7 +138,8 @@ mto_boq_estimator/
 ├── assets/
 │   ├── generate_logo.py        # Regenerates the CostLens logo PNGs (Pillow-only)
 │   ├── costlens_icon.png       # Square mark (favicon / st.logo icon_image)
-│   ├── costlens_logo.png       # Horizontal lockup (icon + wordmark + tagline)
+│   ├── costlens_logo.png       # Horizontal lockup, navy text (for light backgrounds)
+│   ├── costlens_logo_on_dark.png # Same lockup, white text (used in the navy sidebar)
 │   └── fonts/                  # Outfit (OFL-licensed) - bundled for the logo generator
 ├── models/
 │   └── schemas.py              # Pydantic models (single source of truth)
@@ -225,6 +226,26 @@ are capped at `config.MAX_PAGES_PER_FILE` (default 2) per file and
 `config.MAX_TOTAL_IMAGES` (default 6) in total across every uploaded file -
 extra pages/files beyond the caps are silently dropped with an on-screen
 notice, never a crash.
+
+---
+
+## 3c. Finish Level
+
+The **Finish Level** selector (Step 1: Basic / Standard / Premium) is wired
+to the BOQ, not just cosmetic. It never changes a quantity - the same
+floor area still gets floored, the same wall area still gets
+plastered/painted - it only changes the *rate* applied to the
+finish-grade-sensitive categories: **Flooring, Painting, and Plaster**.
+Everything else (concrete, steel, excavation, masonry, formwork, etc.) is
+unaffected, since finish grade has no bearing on structural work.
+
+`engineering/rules.py::FINISH_LEVEL_RATE_MULTIPLIERS` holds the multipliers
+(Standard = 1.00x, matching the rate book's own default rates), derived
+from researched September-2026 Pakistani market price spreads for economy
+vs. mid-range vs. premium tile, paint, and plaster finishes. `Standard` is
+always the rate book's rate un-modified; `Basic`/`Premium` scale it up or
+down. Step 5's BOQ table shows the adjusted rate/amount directly, and each
+affected line's Remarks column notes the multiplier that was applied.
 
 ---
 
