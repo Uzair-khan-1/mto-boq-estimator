@@ -42,22 +42,8 @@ STEP_LABELS = ["1. Project Setup", "2. AI Analysis", "3. Verify Data", "4. MTO",
 with st.sidebar:
     st.title(config.APP_NAME)
     st.caption(f"v{config.APP_VERSION} \u00b7 MVP")
-
-    st.markdown("### Groq API Key")
-    key_from_secret = config.get_secret("GROQ_API_KEY", "")
-    if key_from_secret:
-        st.session_state["groq_api_key"] = key_from_secret
-        st.success("Using API key from app secrets.")
-    else:
-        st.session_state["groq_api_key"] = st.text_input(
-            "Enter your free Groq API key",
-            value=st.session_state.get("groq_api_key", ""),
-            type="password",
-            help="Get a free key at https://console.groq.com/keys. Kept only in this browser session.",
-        )
-        st.caption("[Get a free Groq API key \u2192](https://console.groq.com/keys)")
-
-    st.markdown("---")
+st.session_state["groq_api_key"] = config.get_secret("GROQ_API_KEY", "")
+st.markdown("---")
     st.markdown("### Progress")
     for i, label in enumerate(STEP_LABELS, start=1):
         marker = "\u2705" if st.session_state["step"] > i else ("\u27a1\ufe0f" if st.session_state["step"] == i else "\u2b1c")
@@ -219,7 +205,7 @@ def step_2():
 
     if analyze_clicked:
         if not st.session_state["groq_api_key"]:
-            st.error("Please enter a Groq API key in the sidebar first (it's free).")
+            st.error("AI analysis is currently unavailable. Please use 'Skip AI — use standard defaults' below, or contact the site administrator.")
         else:
             with st.spinner("Calling Groq vision model to interpret the drawing... this can take up to ~30s"):
                 params, raw_text, errors = extract_building_params(
